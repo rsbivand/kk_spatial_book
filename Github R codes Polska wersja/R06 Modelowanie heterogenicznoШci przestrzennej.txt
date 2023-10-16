@@ -1,0 +1,383 @@
+##############################################
+#Przestrzenne metody ilościowe w R: statystyka, ekonometria, uczenie maszynowe, analiza danych
+#Redakcja Katarzyna Kopczewska
+#Autorzy: Katarzyna Kopczewska, Maria Kubara, Piotr Ćwiakowski, Mateusz Kopyt, Piotr Wójcik, Alessandro Festi, Kateryna Zabarina
+#Warszawa, 2020, CeDeWu
+#Wydanie książki zostało sfinansowane z grantu Narodowego Centrum Nauki (NCN) pt. Modele ekonometryczne przestrzenne ze stałą i zmienną strukturą sąsiedztwa. Zastosowanie do wyceny nieruchomości i lokalizacji firm (OPUS 12, umowa nr UMO-2016/23/B/HS4/02363).
+#Książka została wydana w angielskiej wersji językowej jako: Applied Spatial Statistics and Econometrics: Data Analysis in R (redakcja Katarzyna Kopczewska, autorzy: Katarzyna Kopczewska, Maria Kubara, Piotr Ćwiakowski, Mateusz Kopyt, Piotr Wójcik, Alessandro Festi, Kateryna Zabarina), Routledge, 2020
+##############################################
+
+#Rozdział 6
+#Modelowanie heterogeniczności przestrzennej
+#Piotr Ćwiakowski
+
+#6.1 Regresja geograficznie ważona 
+#6.2. Estymacja podstawowego modelu GWR
+#6.2.1 Oszacowanie modelu referencyjnego (MNK)
+
+# Wczytanie pakietu
+library(car) # dla statystyki VIF
+
+mydata<-read.csv2('dane_pow_2019.csv') # Wczytanie danych
+mydata12<-mydata[mydata$rok==2012, ] # Wybranie danych za rok 2012
+mydata12$y<-mydata12$XA14 # Y –średnie wynagrodzenie Polska=100% 
+# x1 – udział zatrudnienia w usługach 
+mydata12$x1<-(mydata12$XA18+mydata12$XA19+mydata12$XA20)/mydata12$XA15
+mydata12$x2<-mydata12$XA21 # X2 – stopa bezrobocia
+# X3 – liczba firm per capita Polska=100%
+mydata12$x3<-mydata12$XA13/mean(mydata12$XA13, na.rm=TRUE)
+# X4 – gęstość zaludnienia Polska=100% 
+mydata12$x4<-mydata12$XA10/mean(mydata12$XA10, na.rm=TRUE)
+
+# Model regresji liniowej
+lm.model<-lm(y ~ x1 + x2 + x3 + x4, data=mydata12)
+summary(lm.model)
+vif(lm.model) # Liczenie statystyki VIF
+
+#6.2.2 Wybór optymalnej dla zbioru szerokości pasma (bandwidth)
+
+library(rgdal)
+library(maptools)
+library(spgwr)
+
+pow<-readOGR("#R8_0 Dane", "powiaty") # wczytanie mapy powiatowej, 380 jedn. 
+pow<-spTransform(pow, CRS("+proj=longlat +datum=NAD83"))
+
+crds<-coordinates(pow) # Policzenie środków powiatów
+colnames(crds)<-c("cx", "cy")
+
+# Zamiana data.frame na SpatialPointsDataFrame
+map<-SpatialPointsDataFrame(data = mydata12, coords = crds)
+
+# Wybranie optymalnej liczby najbliższych sąsiadów
+bw<-gwr.sel(y ~ x1 + x2 + x3 + x4, data=map, adapt=T, RMSE=T)
+
+# Wybranie optymalnego bandwidth
+bw <- gwr.sel(y ~ x1 + x2 + x3 + x4, data = map, adapt = F, RMSE = T)
+
+# Zmienne pomocnicze
+bw_adapt <- numeric(5)
+bw_fixed <- numeric(5)
+i = 1
+
+# Pętla szukająca optymalnej szerokości pasma dla różnych kerneli
+for (kernel in c('gaussian', 'exponential', 'bisquare', 'tricube', 'boxcar')){
+bw_adapt[i]<-bw.gwr(y~x1+x2+x3+x4, data=map, kernel=kernel, adaptive=T)
+bw_fixed[i]<-bw.gwr(y~x1+x2+x3+x4, data=map, kernel=kernel, adaptive=F)
+i = i + 1}
+
+wyniki<-data.frame(
+ Kernel=rep(c('gaussian','exponential','bisquare','tricube','boxcar'),2), 
+ Typ=c(rep('adaptacyjny', 5), rep('stały', 5)),
+ RSS=c(47322.13, 47400.55, 47334.44,47383.18,47542.08,47458.59, 
+   47542.08,47458.59 ,47334.89, 47405.07))
+
+#6.2.3 Lokalne statystki ważone geograficznie
+
+# Policzenie statystyk przestrzennych
+stats<-spgwr::gw.cov(map, 'y', adapt=T, bw=0.6816255, gweight=gwr.gaussian, longlat=FALSE)
+
+# Wydruk pól listy z wynikami 
+#(m. in. średnia, odchylenie std., błąd standardowy)
+names(stats$SDF)
+
+# Zapisanie wektorów z parametrami do zmiennych
+b1<-stats$SDF$mean.V1
+# Ustalenie kolorów dla różnych wartości w rozkładzie parametrów x1
+brks<-c(min(b1), mean(b1)-sd(b1), mean(b1), mean(b1)+sd(b1), max(b1))
+# paleta kolorów
+cols<-c("steelblue4", "lightskyblue", "thistle1", "plum3")
+
+# Wykres (mapa, tytuł legenda)
+plot(pow, col=cols[findInterval(b1, brks)])
+title(main="Przestrzenny rozkład ważonej geograficznie\nśredniej przeciętnej płacy")
+legend("bottomleft", legend=leglabs(round(brks, 2), under='poniżej', over='powyżej'), fill=cols, bty="n")
+
+# Zapisanie wektorów z parametrami do zmiennych
+b1<-stats$SDF$sd.V1
+# Ustalenie kolorów dla różnych wartości w rozkładzie parametrów x1
+brks <- c(min(b1), mean(b1)-sd(b1), mean(b1), mean(b1)+sd(b1), max(b1))
+# paleta kolorów
+cols <- c("steelblue4", "lightskyblue", "thistle1", "plum3")
+
+# Wykres (mapa, tytuł legenda)
+plot(pow, col=cols[findInterval(b1, brks)])
+title(main="Przestrzenny rozkład ważonego geograficznie\n odchylenia standardowego przeciętnej płacy")
+legend("bottomleft", legend=leglabs(round(brks, 2), under='poniżej', over='powyżej'), fill=cols, bty="n")
+par(mfrow=c(1, 1))
+
+#6.2.4 Estymacja regresji ważonej geograficznie
+
+# Oszacowanie modelu GWR
+gwr.model <- gwr(y ~ x1 + x2 + x3 + x4, data = map, adapt = bw)
+
+# Wydruk podsumowania
+gwr.model
+
+# Okno graficzne 2x2
+par(mfrow = c(2, 2), mar = c(1, 1, 1, 1))
+
+# paleta kolorów
+cols <- c("steelblue4", "lightskyblue", "thistle1", "plum3")
+
+# Zapisanie wektorów z parametrami do zmiennych
+b1 <- gwr.model$SDF$x1
+b2 <- gwr.model$SDF$x2
+b3 <- gwr.model$SDF$x3
+b4 <- gwr.model$SDF$x4
+
+# Ustalenie przedziałów kolorystycznych dla różnych wartości parametrów x1
+brks <- c(min(b1), mean(b1) - sd(b1), mean(b1), mean(b1) + sd(b1), max(b1))
+
+# Wykres (mapa, tytuł legenda)
+plot(pow, col = cols[findInterval(b1, brks)])
+title(main = "Odsetek zatrudnionych w sektorze usług") 
+legend("bottomleft", fill=cols, bty="n", legend=leglabs(round(brks, 2), under='poniżej', over='powyżej'))
+# Ustalenie przedziałów kolorystycznych dla różnych wartości parametrów x2
+brks <- c(min(b2), mean(b2) - sd(b2), mean(b2), mean(b2) + sd(b2), max(b2))
+
+# Wykres (mapa, tytuł legenda)
+plot(pow, col = cols[findInterval(b2, brks)])
+title(main = "Stopa bezrobocia")
+legend("bottomleft", fill=cols, bty="n", legend=leglabs(round(brks, 2), under='poniżej', over='powyżej'))
+
+# Ustalenie przedziałów kolorystycznych dla różnych wartości parametrów x3
+brks<-c(min(b3), mean(b3) - sd(b3), mean(b3), mean(b3) + sd(b3), max(b3))
+
+# Wykres (mapa, tytuł legenda)
+plot(pow, col=cols[findInterval(b3, brks)])
+title(main="Liczba firm zarejestrowanych w powiecie")
+legend("bottomleft", fill=cols, bty="n",
+legend=leglabs(round(brks, 2), under='poniżej', over='powyżej'))
+
+# Ustalenie przedziałów kolorystycznych dla różnych wartości parametrów x4
+brks <- c(min(b4), mean(b4) - sd(b4), mean(b4), mean(b4) + sd(b4), max(b4))
+
+# Wykres (mapa, tytuł legenda)
+plot(pow, col = cols[findInterval(b4, brks)])
+title(main = "Gęstość zaludnienia")
+legend("bottomleft", fill = cols, bty = "n",
+legend = leglabs(round(brks, 2), under = 'poniżej', over = 'powyżej'))
+
+# Powrót do domyślnych ustawień (1 wykres w 1 oknie)
+par(mfrow=c(1, 1), mar=c(5, 4, 4, 1))
+
+#6.2.5 Podstawowe testy diagnostyczne modelu GWR
+
+MZ.F1GWR.test(gwr.model)
+LMZ.F2GWR.test(gwr.model)
+BFC99.gwr.test(gwr.model)
+LMZ.F3GWR.test(gwr.model)
+
+library(spdep)
+neib<-spdep::knearneigh(crds, k = 50) # Policzenie najbliższych sąsiadów
+neib.nb<-spdep::knn2nb(neib)
+spgwr::gwr.morantest(gwr.model, spdep::nb2listw(neib.nb))
+spdep::lm.morantest(lm.model, spdep::nb2listw(neib.nb))
+
+library(ggplot2)
+library(Rmisc)
+
+# Wektor z parametrami zmiennej e
+e <- gwr.model$SDF$gwr.e
+pred <- gwr.model$SDF$pred
+
+par(mfrow = c(2, 2)) # podział okna
+
+# Histogram reszt i gęstość rozkładu normalnego
+w1<-ggplot(data=NULL, aes(x=e)) + geom_histogram(aes(y=..density..), bins=100) + stat_function(fun=dnorm, geom='line', size=1, color='red', args=list(sd=sd(e))) + ggtitle('Histogram reszt i gęstość rozkładu\nnormalnego') + labs(x='reszty', y='gęstość')
+
+# Reszty v. zmienna objaśniana
+w2<-ggplot(data=NULL, aes(x=pred, y=e)) + geom_point() + labs(x='Zmienna objaśniana', y='reszty', title='Reszty v. zmienna objaśniana')
+
+# Wykres kwantylowy
+w3<-ggplot(data=NULL, aes(sample=e)) + stat_qq() + stat_qq_line() +
+ggtitle('Wykres kwantylowy reszt') + labs(x='rozkład teoretyczny', y='reszty')
+
+# Wyświetlenie wykresów w jednym oknie
+Rmisc::multiplot(w1, w2, w3, cols=3)
+
+# Oszacowanie modelu
+bw1<-bw.gwr(y~x1+x2+x3+x4, data=map, kernel="gaussian", adaptive=T)
+
+# Estymacja modelu z odległością Euklidesową
+gwr.res<-gwr.basic(y~x1+x2+x3+x4, data=map, bw=bw1, p=2, adaptive=T, kernel='gaussian')
+
+# Wydruk wyników
+gwr.res
+
+source('#R8 - funkcje.R')
+gwr.bootstrap2(y~x1+x2+x3+x4, data=map, p=2, R=99, approach='CV', k.nearneigh=5, adaptive=T, kernel='gaussian', longlat=F, bw=bw)
+gwr.montecarlo(y~x1+x2+x3+x4, data=map, nsims=999, bw=bw1, adaptive=T)
+
+#6.2.6 Testowanie istotności parametrów w GWR
+
+# Testy istotności dla parametrów regresji lokalnych 
+# z korektą Fotheringhama – Byrne’a
+gwr.t.adjust(gwr.res)$results$fb
+
+#6.2.7 Wybór optymalnej formy funkcyjnej modelu
+
+# Policzenie regresji wprzód
+model.sel <- model.selection.gwr(DeVar = 'y', InDeVars = c('x1', 'x2', 'x3', 'x4'), data = map, kernel = "gaussian", adaptive = TRUE, bw = 259)
+
+# Posortowanie modeli według AICc
+sorted.models<-model.sort.gwr(model.sel, numVars=4, ruler.vector= model.sel[[2]][,3])
+
+# Zapisanie listy posortowanych modeli
+model.list<-sorted.models[[1]]
+
+# Ilustracja etapów regresji krokowej
+model.view.gwr('y', c('x1', 'x2', 'x3', 'x4'), model.list = model.list)
+
+sorted.models[[2]] # Wydruk statystyk posortowanych modeli
+
+# Wykres liniowy dopasowania kolejnych modeli, rys.6.5b
+plot(sorted.models[[2]][,2], col = "black", pch = 20, lty = 5, ylab = "AICc", xlab = "Numer modelu w regresji krokowej", type = "b")
+
+#6.2.8 GWR z heteroskedastycznym błędem losowym
+
+gwr_het <- gwr.hetero(y ~ x1 + x2 + x3 + x4, data = map, regression.points = map, longlat = T, bw = bw, adaptive = TRUE, kernel = 'gaussian')
+summary(gwr_het)
+
+#6.3 Problem współliniowości w modelach GWR
+#6.3.1 Diagnozowanie współliniowości w GWR
+
+library(GGally) 
+# Zapisanie współczynników reresji jako kolumn w data.frame
+wsp <- data.frame(x1 = gwr.model$SDF$x1, x2 = gwr.model$SDF$x2,
+   x3 = gwr.model$SDF$x3, x4 = gwr.model$SDF$x4)
+ggpairs(wsp) # Wygenerowanie korelogramu
+
+library(GWmodel) # Wczytanie biblioteki
+
+# Liczenie statystyk diagnosytycznych w GWR 
+diag_gwr<-gwr.collin.diagno(y~x1+x2+x3+x4, map, bw=floor(bw*380), 
+kernel="gaussian", adaptive=T)
+
+summary(diag_gwr)
+diag_gwr$corr.mat
+par(mfrow = c(2, 3)) # Okno graficzne 2x2
+
+# Wektor z nagłówkami dla poszczególnych map
+zmienne=c('x1 z x2', 'x1 z x3', 'x1 z x4', 'x2 z x3', 'x2 z x4', 'x3 z x4')
+
+# Pętla generująca wykresy
+for(i in 5:10){
+print(i)
+b1<-diag_gwr$corr.mat[, i] #zapisanie wektorów z parametrami do zmiennych
+
+# Ustalenie kolorów dla różnych wartości w rozkładzie parametrów x1
+brks<-c(min(b1), mean(b1) - sd(b1), mean(b1), mean(b1) + sd(b1), max(b1))
+# paleta kolorów
+cols <- c("steelblue4", "lightskyblue", "thistle1", "plum3")
+
+# Wykres (mapa, tytuł legenda)
+plot(pow, col = cols[findInterval(b1, brks)])
+title(main = paste0("lokalna korelacja ", zmienne[i - 4]))
+legend("bottomleft", legend=leglabs(round(brks, 2), under='poniżej', over= 'ponad'), fill=cols, bty="n")}
+
+par(mfrow=c(1, 1))
+
+# Macierz korelacji dla całego zbioru
+cor(mydata12[, c('x1', 'x2', 'x3', 'x4')])
+diag_gwr$VIF
+
+ggplot(data = NULL, aes(x = as.vector(diag_gwr$VIF))) + 
+geom_histogram(color='grey78') + scale_x_continuous(breaks=seq(0, 10, by=.5), name='Wartość statystyki VIF')
+
+head(diag_gwr$local_CN, 30)
+head(diag_gwr$VDP)
+
+library(gwrr) # Wczytanie pakietu
+gwr_lasso<-gwl.est(y~x1+x2+x3+x4, locs=crds, kernel="gauss", data= as.data.frame(map)) # Oszacowanie modelu
+
+summary(gwr_lasso) # wyniki
+
+gwr_lasso$phi # Optymalny bandwidth dla GWL
+gwr_lasso$rsquare # R-kwadrat GWL
+gwr_lasso$RMSE # RMSE (in-sample) GWL
+gwr_lasso$RMSPE # RMSE (out-of-sample) GWL
+
+# Estymacja modelu z opcją predykcji in-sample
+gwr.model <- gwr(y ~ x1 + x2 + x3 + x4, data = map, adapt = .68,
+   hatmatrix = TRUE, predictions = TRUE)
+
+Metrics::rmse(mydata12$y, gwr.model$SDF$pred) # błędy predykcji in-sample
+Metrics::rmse(mydata12$y, predict(lm.model, mydata12)) # Regresja liniowa
+Metrics::rmse(mydata12$y, gwr.model$SDF$pred) # GWR (in-sample)
+Metrics::rmse(mydata12$y, gwr_lasso$yhat) # GWL (in-sample)
+
+# Estymowanie szerokości pasma (bandwidth)
+bw<-bw.gwr.lcr(y~x1+x2+x3+x4, data=map, kernel="gaussian", adaptive=TRUE)
+
+gwrr_model <- gwr.lcr(y ~ x1 + x2 + x3 + x4, data = map, bw = bw, kernel = "gaussian", adaptive = TRUE, lambda.adjust = F, lambda = 0)
+gwrr_model
+
+wyniki_AIC <- numeric(101)
+wyniki_AICc<- numeric(101)
+wyniki_b0 <- numeric(101)
+wyniki_b1 <- numeric(101)
+wyniki_b2 <- numeric(101)
+wyniki_b3 <- numeric(101)
+wyniki_b4 <- numeric(101)
+for (i in seq(0, 100)){
+ gwrr_model<-gwr.lcr(y~x1+x2+x3+x4, data=map, bw=bw, kernel="gaussian", adaptive=TRUE, lambda.adjust=F, lambda=i*25)
+ wyniki_AIC[i] <- gwrr_model$GW.diagnostic$AIC
+ wyniki_AICc[i] <- gwrr_model$GW.diagnostic$AICc
+ wyniki_b0[i] <- mean(gwrr_model$SDF$Intercept, na.rm = T)
+ wyniki_b1[i] <- mean(gwrr_model$SDF$x1, na.rm = T)
+ wyniki_b2[i] <- mean(gwrr_model$SDF$x2, na.rm = T)
+ wyniki_b3[i] <- mean(gwrr_model$SDF$x3, na.rm = T)
+ wyniki_b4[i] <- mean(gwrr_model$SDF$x4, na.rm = T)
+}
+w1 <- ggplot(data = NULL, aes(x = seq(0, 99)*25)) +
+ geom_line(aes(y = wyniki_AIC[1:100], color = 'AIC')) +
+ geom_line(aes(y = wyniki_AICc[1:100], color = 'AICc')) +
+ labs(x = 'lambda', y = 'AIC/AICc') +
+ ggtitle('Pogorszanie się dopasowania modelu wraz ze wzrostem lambdy') +
+ theme(legend.title = element_blank(), legend.position = 'bottom')
+
+w2 <- ggplot(data = NULL, aes(x = seq(0, 99)*25)) +
+ geom_line(aes(y = wyniki_b0[1:100], color = 'b0')) +
+ geom_line(aes(y = wyniki_b1[1:100], color = 'b1')) +
+ geom_line(aes(y = wyniki_b2[1:100], color = 'b2')) +
+ geom_line(aes(y = wyniki_b3[1:100], color = 'b3')) +
+ geom_line(aes(y = wyniki_b4[1:100], color = 'b4')) +
+ labs(x = 'lambda', y = 'Wartość współczynnika') +
+ ggtitle('Kurczenie się parametrów wraz ze wzrostem lambdy') +
+ theme(legend.title = element_blank(), legend.position = 'bottom')
+
+Rmisc::multiplot(w1, w2, cols = 2)
+
+#6.4. Mieszany model GWR
+
+model.mixed<-gwr.mixed(y~x1+x2+x3+x4, data=map, fixed.vars=c('x3', 'x4'), bw=bw, diagnostic=TRUE, intercept.fixed=FALSE, adaptive=TRUE, kernel='gaussian')
+model.mixed$aic
+
+lm(y ~ x1 + x2 + x3 + x4, data = map)
+
+#6.5. Regresja odporna w modelu GWR
+
+gwr.robust(y ~ x1 + x2 + x3 + x4, data = map, bw = bw, adaptive = TRUE, 
+ kernel = 'gaussian', F123.test = FALSE, filtered = TRUE, cut.filter = 3)
+
+#6.6. Regresja ważona czasowo i geograficznie (Geographically and Temporally Weighted Regression, GTWR)
+
+# Policzenie zmiennej czas
+mydata$time <- as.Date(as.character(mydata$year), format = '%Y')
+
+# Wydzielenie kolumn ze zbioru
+mydata_t <- mydata[, c('y', 'x1', 'x2', 'x3', 'x4', 'time', )]
+
+# Wektor współrzędnych dla każdej obserwacji w panelu
+crds2 <- do.call("rbind", replicate(10, crds, simplify = FALSE))
+map <- SpatialPointsDataFrame(data = mydata, coords = crds2)
+
+x <- st.dist(coordinates(map), obs.tv = mydata$time, p=2, theta=0, 
+  longlat=F, lamda=0.05,t.units = "auto",ksi=0)
+
+bw_st <- bw.gtwr(y ~ x1 + x2 + x3 + x4, map, mydata$time, approach = "CV",
+   kernel = "gaussian", adaptive = T, verbose=T, st.dMat = x)
+
+model <- gtwr(y ~ x1 + x2 + x3 + x4, map, regression.points = NULL, mydata$time, unique(mydata$time), bw_st, kernel="bisquare", adaptive=FALSE, p=2, theta=0, longlat=F,lamda=0.05,t.units = "auto",ksi=0, st.dMat = x) 

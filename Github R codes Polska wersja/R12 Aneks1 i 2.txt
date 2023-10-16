@@ -1,0 +1,116 @@
+##############################################
+#Przestrzenne metody ilościowe w R: statystyka, ekonometria, uczenie maszynowe, analiza danych
+#Redakcja Katarzyna Kopczewska
+#Autorzy: Katarzyna Kopczewska, Maria Kubara, Piotr Ćwiakowski, Mateusz Kopyt, Piotr Wójcik, Alessandro Festi, Kateryna Zabarina
+#Warszawa, 2020, CeDeWu
+#Wydanie książki zostało sfinansowane z grantu Narodowego Centrum Nauki (NCN) pt. Modele ekonometryczne przestrzenne ze stałą i zmienną strukturą sąsiedztwa. Zastosowanie do wyceny nieruchomości i lokalizacji firm (OPUS 12, umowa nr UMO-2016/23/B/HS4/02363).
+#Książka została wydana w angielskiej wersji językowej jako: Applied Spatial Statistics and Econometrics: Data Analysis in R (redakcja Katarzyna Kopczewska, autorzy: Katarzyna Kopczewska, Maria Kubara, Piotr Ćwiakowski, Mateusz Kopyt, Piotr Wójcik, Alessandro Festi, Kateryna Zabarina), Routledge, 2020
+##############################################
+
+#Aneks A
+#Dane wykorzystane w przykładach
+
+library(spdep)
+library(rgdal)
+library(maptools)
+library(sp)
+
+setwd("D:/SpatialBook")
+
+#A1. Zbiór danych nr 1 /dataset1/ - dane panelowe powiatowe z wieloma zmiennymi
+
+dane<-read.table("dane_pow_2019.csv", sep=";", dec=",", header=TRUE)
+summary(dane)
+names(dane)
+summary(dane)
+dim(dane)
+
+#A2. Zbiór danych nr 2 /dataset2/ – dane punktowe geolokalizowane 
+
+firmy<-read.csv("geoloc data.csv", header=TRUE, dec=",", sep=";")
+summary(firmy)                                 
+names(firmy)
+dim(firmy)
+
+#A3. Zbiór danych 3 /dataset3/ – miesięczna stopa bezrobocia w powiatach (NTS4)
+
+bezrob<-read.csv("bezr2018.csv", header=TRUE, dec=",", sep=";")
+summary(bezrob)
+names(bezrob)
+dim(bezrob)
+
+#A4. Zbiór danych 4 /dataset4/ - dane gridowe dla populacji 
+
+# wczytywanie grid dla populacji i konwersja projekcji
+pop<-readOGR(".", "PD_STAT_GRID_CELL_2011")
+pop<-spTransform(pop, CRS("+proj=longlat +datum=NAD83"))
+
+pop.df<-as.data.frame(pop) # wyodrębnienie danych do obiektu data.frame
+head(pop.df)
+# wyodrębnienie grid
+pop.grid<-as(pop, "SpatialPolygons") 
+
+# konwersja na dane liczbowe kolejnych kolumn zbioru danych
+for(i in 1:15){ 
+pop.df[,i]<-as.numeric(levels(pop.df[,i]))[pop.df[,1]]}
+
+# ucięcie grid do konturu Warszawy
+pow.waw<-pow[pow@data$jpt_nazwa_=="powiat Warszawa",] # kontur Warszawy
+lim<-over(pop.grid, pow.waw) # złożenie grid i mapy konturowej
+a<-which(lim$jpt_nazwa_=="powiat Warszawa") # wiersze spełniające warunek
+
+# warunkowe ograniczenie grid i data.frame do wybranego terenu
+pop.grid.waw<-pop.grid[lim$jpt_nazwa_=="powiat Warszawa", ]
+pop.df.waw<-pop.df[a, ]
+
+# rysunek – kontur administracyjny i grid
+plot(pop.grid.waw)
+plot(pow.waw, add=TRUE)
+
+# rysunek – wartości badanej zmiennej
+library(GISTools)
+choropleth(pop.grid.waw, pop.df.waw$TOT)
+plot(pow.waw, add=TRUE)
+
+#A5. Shapefile mapy konturowe – obręby ewidencyjne, powiaty (NTS4), województwa (NTS2) i kraj (NTS0)
+
+# mapa dla powiatów
+pow<-readOGR(".", "powiaty") 
+pow<- spTransform(pow, CRS("+proj=longlat +datum=NAD83"))
+plot(pow)
+
+# mapa dla województw
+woj<-readOGR(".", "wojewodztwa")
+woj<- spTransform(woj, CRS("+proj=longlat +datum=NAD83"))
+plot(woj)
+
+# mapa dla kraju
+pl<-readOGR(".", "Panstwo")
+pl<- spTransform(pl, CRS("+proj=longlat +datum=NAD83"))
+plot(pl)
+
+# mapa dla obrębów ewidencyjnych
+obreby<-st_read("dane/obreby_ewidencyjne.shp")
+obreby %>% filter(str_detect(kod_obrebu, "1465")) %>% ggplot() + geom_sf() + theme_classic()
+
+#A6. Dane rastrowe o natężeniu świateł nocnych na Ziemi w roku 2013
+
+dane_raster<-raster("F182013.v4c_web.cf_cvg.tif")
+plot(dane_raster)
+
+#A7. Ludność w miastach Polski
+
+ludnośćxy<-read.table("ludnośćxy.csv", sep=";", dec=".",header=TRUE)
+head(ludnośćxy)
+
+
+#########################################
+#Aneks B
+#Powiązania pakietów
+
+install.packages("miniCRAN")
+library(miniCRAN)
+tags <- "sp" # wskazanie pakietów do śledzenia powiązań, tu sp::
+pkgDep(tags)
+dg <- makeDepGraph(tags, depends=TRUE, suggests=TRUE, enhances=TRUE)
+plot(dg, legendPosition = c(-1, 1), vertex.size = 10, cex=1.4)

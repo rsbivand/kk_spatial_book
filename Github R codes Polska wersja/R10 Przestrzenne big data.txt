@@ -1,0 +1,298 @@
+##############################################
+#Przestrzenne metody ilościowe w R: statystyka, ekonometria, uczenie maszynowe, analiza danych
+#Redakcja Katarzyna Kopczewska
+#Autorzy: Katarzyna Kopczewska, Maria Kubara, Piotr Ćwiakowski, Mateusz Kopyt, Piotr Wójcik, Alessandro Festi, Kateryna Zabarina
+#Warszawa, 2020, CeDeWu
+#Wydanie książki zostało sfinansowane z grantu Narodowego Centrum Nauki (NCN) pt. Modele ekonometryczne przestrzenne ze stałą i zmienną strukturą sąsiedztwa. Zastosowanie do wyceny nieruchomości i lokalizacji firm (OPUS 12, umowa nr UMO-2016/23/B/HS4/02363).
+#Książka została wydana w angielskiej wersji językowej jako: Applied Spatial Statistics and Econometrics: Data Analysis in R (redakcja Katarzyna Kopczewska, autorzy: Katarzyna Kopczewska, Maria Kubara, Piotr Ćwiakowski, Mateusz Kopyt, Piotr Wójcik, Alessandro Festi, Kateryna Zabarina), Routledge, 2020
+##############################################
+
+#Rozdział 10
+#Przestrzenne big data
+#Piotr Wójcik
+
+#10.1	 Przykłady zastosowania big data
+#10.2	 Przestrzenne big data
+#10.2.1	Typy danych przestrzennych
+#10.2.2	Wyzwania związane z wykorzystaniem przestrzennych Big Data
+#10.2.2.1	Przetwarzanie dużych zbiorów danych
+#10.2.2.2	Mapowanie i redukcja
+#10.2.2.3	Przestrzenne indeksowanie danych
+#10.3	 Pakiet sf – simple features
+#10.3.1	Klasa sf – specjalna ramka danych
+
+library(sf)
+
+#10.3.2	Dane z geometrią typu POLYGON
+
+powiaty <- st_read("dane/powiaty.shp")
+class(powiaty)
+str(powiaty)
+st_is_longlat(powiaty)
+st_crs(powiaty)
+table(st_is_valid(powiaty))
+ktory_niepopr <- which(!st_is_valid(powiaty))
+powiaty[ktory_niepopr,]
+powiaty2 <- lwgeom::st_make_valid(powiaty)
+class(st_geometry(powiaty2[ktory_niepopr,]))
+lapply(st_geometry(powiaty2[ktory_niepopr,])[[1]], class)
+st_geometry(powiaty2[ktory_niepopr,])[[1]][[2]]
+powiaty2[ktory_niepopr, "geometry"]<-st_collection_extract(st_geometry( powiaty2[ktory_niepopr,]), type = c("POLYGON"), warn = FALSE)
+table(st_is_valid(powiaty2))
+powiaty_sp <- as(powiaty2, "Spatial")
+class(powiaty_sp)
+
+powiaty_sf <- st_as_sf(powiaty_sp)
+class(powiaty_sf)
+print(powiaty2[, c("jpt_kod_je", "jpt_nazwa_")], n = 5)
+head(powiaty2$jpt_kod_je)
+head(st_set_geometry(powiaty2[, c("jpt_kod_je", "jpt_nazwa_")], value=NULL))
+head(st_drop_geometry(powiaty2[, c("jpt_kod_je", "jpt_nazwa_")]))
+class(powiaty2$geometry)
+class(st_geometry(powiaty2)[[1]])
+powiaty2 <- powiaty2[, c("jpt_kod_je", "jpt_nazwa_")]
+
+head(powiaty2)
+powiaty2$kod_woj <- substr(powiaty2$jpt_kod_je, 1, 2)
+table(powiaty2$kod_woj)
+plot(powiaty2[, "kod_woj"])
+powiaty_punkty <- st_cast(powiaty2$geometry, "MULTIPOINT")
+class(powiaty_punkty)
+length(powiaty_punkty[[1]])
+powiaty_punkty_zlicz <- sapply(powiaty_punkty, length)
+sum(powiaty_punkty_zlicz) #Sprawdzenie ile jest łącznie wierzchołków we wszystkich powiatach
+pryr::object_size(powiaty2)
+powiaty_proste <- st_simplify(powiaty2, dTolerance = 50)
+pryr::object_size(powiaty_proste)
+powiaty_proste_punkty <- st_cast(powiaty_proste$geometry, "MULTIPOINT")
+sum(sapply(powiaty_proste_punkty, length))
+
+#10.3.3	Dane z geometrią typu POINT
+
+powiaty_srodki <- st_centroid(powiaty2)
+powiaty_srodki
+class(powiaty_srodki$geometry) # Sprawdzenie klasy kolumny z geometrią
+plot(st_geometry(powiaty2))
+plot(powiaty_srodki$geometry, add = TRUE, pch = 20, col = "red")
+
+#10.3.4	Wizualizacja w wykorzystaniem pakietu ggplot2::
+
+ggplot(powiaty_proste) + geom_sf() + theme_bw() # 10.2a
+ggplot(powiaty_srodki) + geom_sf() + theme_bw() # 10.2.b
+ggplot(powiaty_proste) + geom_sf(aes(fill = kod_woj)) + theme_bw()
+ggplot() + geom_sf(data = powiaty_proste, aes(fill = kod_woj)) + 
+   geom_sf(data = powiaty_srodki, col = "black") + theme_bw()
+
+#10.3.5	Wybrane funkcje do analiz przestrzennych
+
+head(st_area(powiaty_proste), 10)
+head(st_area(powiaty_srodki), 10)
+
+(ktora_warszawa <- which(powiaty$jpt_nazwa_ == "powiat Warszawa"))
+(ktora_bydgoszcz <- which(powiaty$jpt_nazwa_ == "powiat Bydgoszcz"))
+(ktore_katowice <- which(powiaty$jpt_nazwa_ == "powiat Katowice"))
+st_distance(powiaty[c(ktora_warszawa, ktora_bydgoszcz, ktore_katowice),], 
+   powiaty[141:145,])
+
+# odległości od środków miast
+st_distance(powiaty_srodki[c(ktora_warszawa, ktora_bydgoszcz, ktore_katowice),], powiaty[141:145,])
+
+# pomijamy drugi argument
+st_distance(powiaty_srodki[c(ktora_warszawa, ktora_bydgoszcz, ktore_katowice),])
+
+system.time(odleglosci_polygon <- st_distance(powiaty[c(
+ktora_warszawa, ktora_bydgoszcz, ktore_katowice),], powiaty[141:145,]))
+system.time(odleglosci_multipoint <- st_distance(st_cast(powiaty[c( ktora_warszawa, ktora_bydgoszcz, ktore_katowice),], "MULTIPOINT"),  powiaty[141:145,]))
+
+odleglosci_polygon - odleglosci_multipoint
+st_intersects(x = powiaty[c(ktora_warszawa, ktora_bydgoszcz, ktore_katowice),], y = powiaty[148:152,])
+st_intersects(powiaty[c(ktora_warszawa, ktora_bydgoszcz, ktore_katowice),], 
+  powiaty_srodki[148:152,], sparse = FALSE)
+
+powiaty_sasiedzi <- st_intersects(powiaty, powiaty)
+powiaty_sasiedzi
+
+#Sprawdzanie, czy geometrie poszczególnych obiektów są identyczne
+st_equals(powiaty[c(ktora_warszawa, ktora_bydgoszcz, ktore_katowice),], 
+ powiaty[148:152,], sparse = FALSE)
+
+#Sprawdzanie, czy geometrie poszczególnych obiektów są rozłączne
+st_disjoint(powiaty[c(ktora_warszawa, ktora_bydgoszcz, ktore_katowice),], 
+  powiaty_srodki[148:152,], sparse = FALSE)
+
+#Sprawdzanie, czy geometrie dotykają się (są styczne)
+st_touches(powiaty[c(ktora_warszawa, ktora_bydgoszcz, ktore_katowice),], 
+  powiaty_srodki[148:152,], sparse = FALSE)
+
+#Sprawdzanie, czy geometrie są położone w odległości nie większej niż wartość podana jako argument dist (w metrach)
+st_is_within_distance(powiaty[c(ktora_warszawa, ktora_bydgoszcz, ktore_katowice),], powiaty_srodki[148:152,], dist = 1000, sparse = TRUE)
+
+#Sprawdzanie, czy geometrie poszczególnych elementów z pierwszego obiektu zawierają elementy z drugiego obiektu
+st_contains(powiaty[c(ktora_warszawa, ktora_bydgoszcz, ktore_katowice),],     
+  powiaty_srodki[148:152,], sparse = FALSE)
+
+#Sprawdzanie, czy geometrie poszczególnych elementów z pierwszego obiektu pokrywają elementy z drugiego obiektu
+st_covers(powiaty[c(ktora_warszawa, ktora_bydgoszcz, ktore_katowice),], 
+ powiaty_srodki[148:152,], sparse = FALSE)
+
+#Sprawdzanie, czy geometrie poszczególnych elementów z pierwszego obiektu są pokryte elementami z drugiego obiektu
+st_covered_by(powiaty_srodki[148:152,], powiaty[c(ktora_warszawa, ktora_bydgoszcz, ktore_katowice),], sparse = FALSE)
+
+#10.4	 Wykorzystanie funkcji pakietu dplyr::
+
+library(dplyr)
+library(stringr)
+library(sf)
+
+obreby <- st_read("dane/obreby_ewidencyjne.shp")
+class(obreby)
+glimpse(obreby)
+dim(obreby)
+head(obreby)
+select(obreby, jpt_kod_je, jpt_nazwa_, geometry) # wybrane kolumny
+select(obreby, jpt_kod_je:jpt_orga01)
+select(obreby, starts_with("jpt")) 
+select(obreby, ends_with("01"))
+select(obreby,  contains("wersja"))
+select(obreby,  matches("_.{3}_"))
+select(obreby, jpt_kod_je:jpt_orga01, ends_with("01"), matches("_.{3}_"))
+select(obreby,  -ends_with("01"), -matches("_.{3}_"))
+select(obreby, jpt_kod_je, jpt_nazwa_) -> obreby
+filter(obreby, str_detect(jpt_nazwa_, "WARSZA"))
+filter(obreby,str_detect(jpt_nazwa_,'WARSZ'), str_sub(jpt_kod_je, 1, 2)=="14")
+obreby <- mutate(obreby, kod_woj = str_sub(jpt_kod_je, 1, 2))
+
+names(obreby)
+obreby <- rename(obreby, kod_obrebu = jpt_kod_je, nazwa_obrebu = jpt_nazwa_)
+names(obreby)
+
+nrow(obreby)
+summarize(st_set_geometry(obreby, NULL), n())
+summarize(st_set_geometry(obreby, NULL), liczba = n())
+
+obreby_woj <- group_by(st_set_geometry(obreby, NULL), kod_woj) 
+class(obreby_woj)
+
+summarize(obreby_woj, liczba = n()) # obs.1-6
+arrange(summarize(obreby_woj, liczba = n()), liczba) # obs.1-6
+arrange(summarize(obreby_woj, liczba = n()), desc(liczba)) # obs.1-6
+obreby_woj %>% summarize(liczba = n()) %>% arrange(desc(liczba)) # obs.1-6
+obreby_woj %>% summarize(liczba = n()) %>% arrange(desc(liczba)) %>%
+  .[["liczba"]] %>% hist(main = "Rozkład liczby obrębów w województwach)")
+
+st_read("dane/obreby_ewidencyjne.shp") %>% 
+select(jpt_kod_je, jpt_nazwa_) %>% 
+mutate(kod_woj = str_sub(jpt_kod_je, 1, 2)) %>% 
+st_set_geometry(NULL) %>% 
+group_by(kod_woj) %>% 
+summarize(liczba = n()) %>% 
+arrange(desc(liczba)) # pierwszych sześć
+
+obreby %>% mutate(powierzchnia = st_area(.)) %>% aggregate(powierzchnia ~ kod_woj, data = ., FUN = sum,4 na.rm = TRUE) # pierwszych sześć
+
+obreby %>% filter(str_detect(kod_obrebu, "1465")) %>% ggplot() + geom_sf() + theme_bw()
+
+#10.5	 Przykładowa analiza dużych danych rastrowych
+#10.5.1	Pomiar nierówności ekonomicznych z kosmosu
+
+library(rgdal)
+library(rgeos)
+library(dplyr)
+library(readr)
+library(raster)
+library(pryr)
+library(tabularaster)
+
+#10.5.2	Analiza z wykorzystaniem funkcji pakietu raster::
+
+dane_raster <- raster("dane/F182013.v4c_web.stable_lights.avg_vis_PART.tif")
+
+inMemory(dane_raster)
+plot(dane_raster)
+print(dane_raster)
+
+dane_raster@ncols
+dane_raster@nrows
+ncol(dane_raster) 
+nrow(dane_raster)
+ncell(dane_raster)
+dim(dane_raster)
+
+nlayers(dane_raster)
+dane_raster[1111, 9999]
+dane_raster[1e6]
+
+compareRaster(dane_raster, dane_raster,  dane_raster) 
+
+dane_raster_3warstwy <- stack(dane_raster,  dane_raster,  dane_raster) 
+names(dane_raster_3warstwy) = c("warstwa1", "warstwa2", "warstwa3")
+class(dane_raster_3warstwy)
+dane_raster_3warstwy
+
+raster::subset(dane_raster_3warstwy, "warstwa1")
+dane_raster_3warstwy[["warstwa2"]]
+dane_raster_3warstwy$warstwa3
+mapa_woj <- st_read(dsn = "dane/wojewodztwa.shp")
+mapa_woj<-as(mapa_woj, "sf")
+class(mapa_woj)
+
+crs(dane_raster)
+crs(mapa_woj)
+
+mapa_woj <- st_transform(mapa_woj, crs(dane_raster)@projargs)
+mapa_woj <- mapa_woj %>% dplyr::select(jpt_kod_je, jpt_nazwa_, jpt_powier)
+
+extent(data_raster)  # Sprawdzenie zakresu przestrzennego analizowanych danych rastrowych
+extent(mapa_woj) # Sprawdzenie zbioru z mapą polskich województw
+
+dane_raster_PL <- crop(dane_raster, extent(mapa_woj)) 
+writeRaster(dane_raster_PL, filename = "dane_raster_PL.tif", overwrite = TRUE)
+plot(dane_raster_PL)
+plot(st_geometry(mapa_woj), add = TRUE)
+
+dane_raster_PL <- mask(dane_raster_PL, mask = mapa_woj)
+plot(dane_raster_PL)
+plot(st_geometry(mapa_woj), add = TRUE)
+
+ncell(dane_raster_PL[!is.na(dane_raster_PL)])
+mapa_woj$jpt_kod_je
+mapa_woj <- mapa_woj %>% arrange(jpt_kod_je) 
+
+system.time(dane_raster_PL_woj <-raster::extract(dane_raster_PL,mapa_woj))
+class(dane_raster_PL_woj)
+str(dane_raster_PL_woj)
+
+swiatla_woj <- sapply(dane_raster_PL_woj, sum, na.rm = TRUE)
+print(swiatla_woj)
+
+system.time({
+cell <- cellnumbers(dane_raster_PL, mapa_woj)
+str(cell)
+cell %>% mutate(light = raster::extract(dane_raster_PL, cell$cell_)) %>% 
+ group_by(object_) %>% summarise(swiatla = sum(light, na.rm = TRUE)) -> 
+ swiatla_woj2})
+
+identical(swiatla_woj, swiatla_woj2$swiatla)
+
+daneGUS <- read_csv("dane/daneGUS.csv")
+head(daneGUS)
+mapa_woj$jpt_kod_je %>% as.character() %>% as.numeric() %>%  identical(daneGUS$wojid)
+
+daneGUS$swiatla2013 <- swiatla_woj2$swiatla
+daneGUS %>% dplyr::select(ends_with("2013")) %>%  cor() 
+
+10.5.3	Inne funkcje pakietu raster::
+
+summary(dane_raster_PL) 
+cellStats(stack(dane_raster_PL), mean, na.rm = TRUE)
+cellStats(stack(dane_raster_PL), sd, na.rm = TRUE)
+
+summary(dane_raster_3warstwy) #zastosowanie na danych o więcej niż jednej warstwie
+
+cv <- function(x, na.rm) 100 * sd(x, na.rm = na.rm) / mean(x, na.rm = na.rm)
+cellStats(dane_raster_PL, cv, na.rm = TRUE)
+
+table(getValues(dane_raster_PL))
+
+#10.5.4	Potencjalna alternatywa – pakiet stars::
+

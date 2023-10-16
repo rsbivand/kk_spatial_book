@@ -1,0 +1,622 @@
+##############################################
+#Przestrzenne metody ilościowe w R: statystyka, ekonometria, uczenie maszynowe, analiza danych
+#Redakcja Katarzyna Kopczewska
+#Autorzy: Katarzyna Kopczewska, Maria Kubara, Piotr Ćwiakowski, Mateusz Kopyt, Piotr Wójcik, Alessandro Festi, Kateryna Zabarina
+#Warszawa, 2020, CeDeWu
+#Wydanie książki zostało sfinansowane z grantu Narodowego Centrum Nauki (NCN) pt. Modele ekonometryczne przestrzenne ze stałą i zmienną strukturą sąsiedztwa. Zastosowanie do wyceny nieruchomości i lokalizacji firm (OPUS 12, umowa nr UMO-2016/23/B/HS4/02363).
+#Książka została wydana w angielskiej wersji językowej jako: Applied Spatial Statistics and Econometrics: Data Analysis in R (redakcja Katarzyna Kopczewska, autorzy: Katarzyna Kopczewska, Maria Kubara, Piotr Ćwiakowski, Mateusz Kopyt, Piotr Wójcik, Alessandro Festi, Kateryna Zabarina), Routledge, 2020
+##############################################
+
+#Rozdział 8
+#Analiza przestrzennych rozkładów punktowych i interpolacja przestrzenna
+#Kateryna Zabarina
+
+#8.1. Wprowadzenie i główne definicje
+#8.1.1. Zbiór danych
+
+firmy<-read.csv("geoloc data.csv", header=TRUE, dec=",", sep=";")
+names(firmy)
+
+# wielkość zatrudnienia – zmienna GR_LPRAC
+# GR_LPRAC = 1 -> between 1 and 9 persons
+# GR_LPRAC = 2 -> between 10 and 49 persons
+# GR_LPRAC = 3 -> between 50 and 249 persons
+# GR_LPRAC = 4 -> between 250 and 999 persons
+# GR_LPRAC = 5 -> more than 1500 persons
+
+table(firmy$GR_LPRAC)
+firmy$zatr<-ifelse(firmy$GR_LPRAC==1, 5, ifelse(firmy$GR_LPRAC==2, 30, ifelse(firmy$GR_LPRAC==3,150, ifelse(firmy$GR_LPRAC==4, 600, 1500))))
+table(firmy$zatr)
+table(firmy$P_FORMA_PR)
+
+#8.1.2. Tworzenie okna i rozkładu punktowego
+
+# ładowanie pakietów
+library(sp)  	# dla spTransform()
+library(spatstat) # dla as.owin() 
+library(rgdal)  # dla readOGR()
+library(maptools) # aby uruchomić as.owin()
+
+woj<-readOGR(".","wojewodztwa") # wczytywanie danych 
+region<-woj[woj$jpt_nazwa_=="lubelskie",] # wciaż klasa sp
+region<-spTransform(region, CRS("+proj=merc +datum=WGS84")) # planarne 
+
+W<-as.owin(region) # konwersja do klasy owin
+W<-as(region, "owin") # konwersja do klasy owin
+
+class(W)
+
+library(spatstat)
+
+# zmiana projekcji współrzędnych punktów
+cord<-as.matrix(cbind(firmy$coords.x1, firmy$coords.x2))
+cord.sp<-SpatialPoints(cord) # punkty w klasie sp - sferyczne
+proj4string(cord.sp)<-CRS("+proj=longlat +datum=NAD83") # sferyczne
+cord.sp<-spTransform(cord.sp, CRS("+proj=merc +datum=NAD83")) #planarne
+
+# rozkład punktowy nieoznakowany (unmarked)
+ppp_um<-ppp(x=cord.sp@coords[,1], y=cord.sp@coords[,2], window=W)
+
+# rozkład punktowy z wartościami (marked)
+ppp_m<-ppp(x=cord.sp@coords[,1], y=cord.sp@coords[,2], window=W, marks= firmy$GR_LPRAC)
+
+# rysowanie rozkładu punktowego nieoznakowanego Rys.8.2
+par(mar=c(1,1,1,1))
+plot(ppp_um, main="Badany rozkład punktowy, 37087 obs.") # spatstat:: 
+
+# tworzenie okręgu 
+# środek w centroidzie regionu
+# a i b – promienie elipsy, centre – środek okręgu, phi – kąt rotacji
+circ<-ellipse(a=200000, b=200000, centre=c(2547063.75417, 6635810.07789), phi=pi)
+X.c<-ppp(x=cord.sp@coords[,1], y=cord.sp@coords[,2], window=circ)
+plot(X.c) 	# Rys.8.3a
+
+# tworzenie prostokąta
+# w pierwszym nawiasie – współrzędne x lewego dolenego i prawego górnego punktów
+# w drugim nawiasie – to samo dla współrzędnych y 
+boundingbox(W) # koordynaty dla boudnding box
+# window: rectangle = [2406231.2, 2687896.3] x [6457131, 6818514] units
+sq<-owin(c(2406232, 2687897), c(6457131 ,6818514)) # tworzenie prostokąta
+X.sq<-ppp(x=cord.sp@coords[,1], y=cord.sp@coords[,2], window=sq)
+plot(X.sq)
+
+#8.1.3. Znaki
+
+# wartości numeryczne
+ppp_empl<-ppp(x=cord.sp@coords[,1], y=cord.sp@coords[,2], window=W, marks=firmy$zatr) # wartości określające wielkość zatrudnienia 
+
+# wartości kategoryczne
+ppp_firmy<-ppp(x=cord.sp@coords[,1], y=cord.sp@coords[,2], window=W, marks=as.factor(firmy$P_FORMA_PR)) # wartości określające formę prawną
+
+# rozkład punktowy z wartościami numerycznymi – ppp_empl
+# kontrola kształtu punktów ze względu na wielkość zatrudnienia
+# opcja markscale jest mnożnikiem dla wszystkich wartości zmiennej
+plot(ppp_empl, markscale=0.002, pch=1)
+
+# rozkład punktowy z wartościani kategorycznymi – ppp_firmy
+# kontrola koloru punktów ze względu na formę prawną
+plot(ppp_firmy, pch=1, cex=0.8, cols= c("red", "green", "blue"))
+
+# zbiór zawiera 37087 punktów, 
+# niektóre wartości nie mogą być poprawnie narysowane komendą plot()
+# numeryczne wartości zostały konwertowane do klasy factor 
+# rozkład punktowy został podzielony i narysowany warstwa po warstwie
+
+marks(ppp_empl)<-as.factor(marks(ppp_empl))
+split_ppp_empl<-split(ppp_empl)
+
+# Rys.8.5a
+plot(W, main="Rozkład punktowy z wartościami \n reprezentującymi wielkość zatrudnienia")
+# kolejne warstwy rozkładu punktoweg 
+# pierwsza warstwa – najczęściej obserwowane wartości
+plot(split_ppp_empl[[1]], add = TRUE, cex=0.75, pch=16, col="green")
+plot(split_ppp_empl[[2]], add = TRUE, cex=1, pch=16, col="blue")
+plot(split_ppp_empl[[3]], add = TRUE, cex=1.25, pch=16, col="red")
+plot(split_ppp_empl[[4]], add = TRUE, cex=1.5, pch=16, col="black")
+plot(split_ppp_empl[[5]], add = TRUE, cex=1.75, pch=16, col="orange")
+legend("bottomleft", legend=c("5","30","150","600","1500"),
+  col=c("green", "blue", "red", "black", "orange"), pch=16, cex=0.8)
+
+# Rys.8.5b
+split_ppp_firmy<-split(ppp_firmy, reduce=TRUE) 
+cols<-c("red", "green", "blue")
+plot(W, main="Rozkład punktowy z wartościami \n reprezentującymi formę prawną firmy")
+plot(split_ppp_firmy[[2]], add = TRUE, col = cols[2], pch=18)
+plot(split_ppp_firmy[[3]], add = TRUE, col = cols[3], pch=18)
+plot(split_ppp_firmy[[1]], add = TRUE, col = cols[1], pch=18)
+legend("bottomleft", legend=c("osoby fizyczne", "jednostki organizacyjne \n nieposiadające \n osobowości prawnej", "osoby prawne"), col=c("green", "blue", "red"), pch=18, cex=0.8)
+
+firmy$sector[firmy$SEK_PKD7=="A"]<-"rolnictwo"
+firmy$sector[firmy$SEK_PKD7=="F"]<-"budownictwo"
+firmy$sector[firmy$SEK_PKD7 %in% c("B", "C", "D", "E")]<-"produkcja"
+firmy$sector[firmy$SEK_PKD7 %in% c("G", "H", "I", "J", "K", "L", "M", "N", "O", "Q", "P", "R", "S")]<-"usługi"
+
+summary(marks(ppp_firmy)) # dotychczasowe wartości
+marks(ppp_firmy)<-as.factor(firmy$sector) # zmiana wartości 
+summary(marks(ppp_firmy))
+plot(ppp_firmy, cols=c("red", "blue", "green", "black"), pch=1, cex=0.75)
+
+## zastosowanie setmarks()
+summary(setmarks(ppp_firmy, as.factor(firmy$sector))) 
+summary(marks(ppp_firmy)) # bez zmian
+
+## alternatywa – wykorzystanie operatora pipeline z pakietu magrittr::
+library(magrittr)
+ppp_empl %mark% as.factor(firmy$sector)
+unmark(ppp_firmy)
+ppp_firmy
+
+# lub równoważnie
+marks(ppp_firmy)<-NULL
+ppp_firmy
+
+marks(ppp_firmy) <- as.factor(firmy$SEK_PKD7)
+summary(marks(ppp_firmy))
+
+#8.1.4. Zmienne towarzyszące (covariates)
+
+# wczytanie pakietów
+library(rgdal) # do wczytywania shapefiles
+library(sp)  # w celu wykorzystania komendy spDistsN1()
+library(spatstat) # pozwoli utworzyć window i pixel image
+
+# określenie koordynat dla Lublina
+# pierwsza wartość x/długość geogr., druga wartość y/szerokość geogr.
+lublin<-c(22.568445, 51.246452) # dla koordynat sferycznych
+
+# utworzenie wektora odległości
+# obiekt ‘firmy’ powinien być klasy SpatialPointsDataFrame 
+# transformacja jest możliwa jak poniżej:
+coordinates(firmy) <- ~coords.x1+coords.x2
+
+# calculation of distances, option longlat=TRUE gives results in km
+firmy$dist<-spDistsN1(firmy, lublin, longlat = TRUE)
+
+# utworzenie macierzy
+mat_im<-cbind(firmy@coords[,1], firmy@coords[,2], firmy$dist)
+
+mat_pix <- as.im(mat_im, W)
+plot(mat_pix)
+
+#8.1.5. Duplikowanie punktów
+
+sum(duplicated(ppp_um))
+ppp_um <- unique(ppp_um)
+ppp_um
+summary(duplicated(ppp_um))
+
+## alternatywny sposób
+ppp_um<-ppp_um[!duplicated(ppp_um)] # wynik jak powyżej
+
+d2 <- summary(duplicated(ppp_firmy))
+d2
+
+xr1 <- rjitter(ppp_um, 0.02)
+summary(duplicated(xr1))
+
+plot(xr1)
+xr2 <- rjitter(ppp_firmy, 0.02)
+summary(duplicated(xr2))
+# 8.1.6. Projekcja i skalowanie
+
+area.owin(W)
+summary(ppp_um)
+ppp_um<-rescale(ppp_um, 0.0113429, "km")
+summary(ppp_um)
+
+library(sp) 
+library(rgdal)
+
+# sprawdzanie projekcji granic województw
+woj <-readOGR(".","wojewodztwa") # 16 jedn.
+proj4string(woj)
+
+# konwersja do klasy sp
+coordinates(firmy)<-~coords.x1+coords.x2
+proj4string(firmy)<-CRS("+proj=tmerc +lat_0=0 +lon_0=19 +k=0.9993 +x_0=500000 +y_0=-5300000 +ellps=GRS80 +units=m +no_defs")
+
+summary(firmy)
+# wybór jednego województwa
+region<-woj[woj$jpt_nazwa_=="lubelskie",]
+
+ids<-sample(dim(firmy)[1], size=1500)
+firmy.sub<-firmy[ids,]
+
+#sprawdzenie czy projekcja jest ta sama w regionie i punktach SpatialPoints
+proj4string(region)
+
+# konwersja do klasy ‘owin’
+W<-as(region, "owin")
+p<-ppp(firmy.sub$coords.x1, firmy.sub$coords.x2, W)
+summary(p)
+
+proj4string(firms)
+proj4string(region)
+bbox(firms)
+bbox(region)
+
+# rozkład nieoznakowany
+ppp_um<-unique(ppp_um)
+ppp_um<-rescale(ppp_um, 1593.52, "km")
+set.seed(ppp_um$n) 
+s1<-(runif(ppp_um$n)<0.06)
+um_s<-ppp_um[s1]
+summary(duplicated(um_s)) # 1502 punktów, nie znaleziono duplikatów
+
+# rozkład z wartościami (sektory)
+ppp_firmy<-rjitter(ppp_firmy, 0.02)
+ppp_firmy<-rescale(ppp_firmy, 1593.52, "km")
+set.seed(ppp_firmy$n)
+s2<-(runif(ppp_firmy$n)<0.045)
+mm_s<-ppp_firmy[s2]
+summary(duplicated(mm_s)) #1589 punktów, nie znaleziono duplikatów
+
+#8.2. Analiza intensywności w rozkładach punktowych oznakowanych
+
+homo_model <- ppm(pattern, ~1)
+inhom_model_1 <- ppm(pattern, ~x)
+inhom_model_2 <- ppm(pattern, ~covariate)
+
+#8.2.1. Quadrat test (test zliczania w kwadratach)
+
+q1 <- quadrat.test(um_s, nx=5, ny=5)
+q1
+names(q1)
+q1$method
+
+q2<-quadrat.test(um_s, nx=10, ny=10)
+q2$p.value
+
+q3<-quadrat.test(um_s, nx=25, ny=25)
+q3$p.value
+
+q4<-quadrat.test(um_s, nx=50, ny=50)
+q4$p.value
+
+q5<-quadrat.test(um_s, nx=100, ny=100)
+q5$p.value 
+
+#8.2.2. Testy z przestrzennymi zmiennymi towarzyszącymi (spatial covariates)
+
+ks.rand<-cdf.test(um_s, "x")
+ks.rand
+
+cvm.rand<-cdf.test(um_s, "x", "cvm")
+cvm.rand
+
+ad.rand<-cdf.test(um_s, "x", "ad")
+ad.rand
+
+bt1<-berman.test(um_s, "x") 
+bt1
+
+bt2<-berman.test(um_s, "x", "Z2") 
+bt2
+
+plot(ks.rand)
+
+mat_im<-cbind(firmy.sub$coords.x1, firmy.sub$coords.x2, firmy.sub$dist)
+mat_pix<-as.im(mat_im, W)
+
+ks.rand.im<-cdf.test(um_s, mat_pix)
+ks.rand.im
+cvm.rand.im<-cdf.test(um_s, mat_pix, "cvm")
+cvm.rand.im
+
+ad.rand.im <- cdf.test(um_s, mat_pix, "ad")
+ad.rand.im
+
+bt1.im <- berman.test(um_s, mat_pix) 
+bt1.im
+
+bt2.im <- berman.test(um_s, mat_pix, "Z2") 
+bt2.im
+
+#8.3. Analiza rozkładu punktowego nieoznakowanego w oparciu o odległość
+#8.3.1. Miary oparte na odległości
+#8.3.1.1. Funkcja K Ripley’a 
+
+Ki<-Kinhom(um_s)
+Ki
+plot(Ki) #Rys.8.10a
+
+#8.3.1.2. Funkcja F
+
+Fi <- Finhom(um_s) #Rys.8.10b
+plot(Fi)
+
+#8.3.1.3. Funkcja G
+
+Gi <- Ginhom(um_s) #Rys.8.10c
+plot(Gi)
+
+#8.3.1.4. Funkcja J
+
+Ji<-Jinhom(um_s) #Rys.8.10d
+plot(Ji)
+
+#8.3.1.5. Testy CSR oparte na odległości
+
+ce.test <- clarkevans.test(um_s)
+ce.test
+
+ht <- hopskel.test(um_s)
+ht
+
+#8.3.2. Testy Monte-Carlo
+#8.3.3. Obwiednie
+
+E <- envelope(um_s, Linhom, nsim = 5, verbose=FALSE)
+plot(E)
+
+#8.3.4. Testy niegraficzne
+
+dclf.xr <- dclf.test(X.rand, Lest, nsim=19)
+dclf.xr
+
+mad.xr <- mad.test(X.rand, Lest, nsim=19)
+mad.xr
+
+#8.4. Wybór i oszacowanie właściwego modelu dla rozkładu punktowego nieoznakowanego (unmarked point pattern)
+#8.4.1. Nota teoretyczna
+#8.4.2. Wybór parametrów
+
+r1 <- seq(1,10,by=0.05) # określenie wektora możliwych promieni
+D1 <- data.frame(r=r1) # konwersja do klasy data.frame
+fp1 <- profilepl(D1, Strauss, um_s ~ 1, aic=TRUE, fast=TRUE, verbose=FALSE)
+fp1
+
+m1 <- ppm(um_s ~ 1, PairPiece(1:10)) # sprawdzenie dla róznych promieni
+f1 <- fitin(m1) # dopasowanie funkcji step
+plot(f1, main="")
+
+# stacjonarny model nasycenia Geyera
+# setting r from 1 to 10 and s from 1 to 3
+df <- expand.grid(r=seq(1,10, by=0.05), sat=c(1,3)) 
+pG <- profilepl(df, Geyer, um_s ~ 1, aic=TRUE, verbose=FALSE)
+pG
+
+df1 <- expand.grid(r=seq(1,10, by=0.05), sat=c(1,3))
+pG1 <- profilepl(df1, Geyer, um_s ~ x, aic=TRUE, verbose=FALSE)
+pG1
+
+#8.4.3. Oszacowania i wyniki
+
+as.ppm(pG)
+as.ppm(pG1)
+anova(as.ppm(pG), as.ppm(pG1), test="Chi")
+diagnose.ppm(as.ppm(pG1), type="Pearson", envelope=TRUE, nsim=19) # Rys.8.13a
+qqplot.ppm(as.ppm(pG1), nsim=19) # Rys.8.13b
+
+#8.4.4. Wnioski
+#8.5. Analiza intensywności w rozkładach punktowych oznakowanych
+#8.5.1.Test segregacji (Segregation test)
+
+s<-segregation.test(mm_s, nsim=19)
+s
+
+#8.6. Analiza korelacji i rozrzutu w rozkładzie punktowym z wartościami
+#8.6.1. Analiza przy założeniu stacjonarności
+#8.6.1.1 Warianty funkcji K dla rozkładu wielorakiego
+
+Kfm<-Kcross(,"F", "M") # Rys.8.14a
+plot(Kfm)
+Kdi<-Kdot(mm_s, "G") # Rys.8.14b
+plot(Kdi)
+
+#8.6.1.2. Funkcja powiązań wartości (mark connection function)
+
+ma<-markconnect(X.rand2, "J", "K")
+plot(ma) # rys.8.15
+
+#8.6.1.3. Analiza zależności wewnątrz typów i pomiędzy typami 
+
+mc<-markcorr(mm_s) # Rys.8.16a
+plot(mc)
+
+Ic <- Iest(mm_s) # Ryus.8.16b
+plot(Ic)
+
+#8.6.1.4. Test randomizacyjny niezależności składników
+
+mm_s$window # początkowe okno
+# ustalenie nowego okna
+window(mm_s) <- owin(c(1510.01,1686.7666), c(4052.118,4278.901)) 
+mm_s$window # zmienione okno
+
+E<-envelope(mm_s, Lcross, nsim=99, i="A", j="C", simulate=expression(rshift(mm_s, radius=35)))
+plot(E)
+
+#8.6.2. Analiza przy założeniu niestacjonarności
+#8.6.2.1. Warianty niejednorodnej funkcji K dla wielorodzajowych wzorców
+
+Kfmi <- Kcross.inhom(mm_s, "F", "M") # Rys.8.19a
+plot(Kfmi)
+Kdii<-Kdot.inhom(mm_s, "G") # Rys.8.18b
+plot(Kdii)
+
+#8.7. Wybór i oszacowanie właściwego modelu dla rozkładu punktowego oznakowanego
+#8.7.1. Uwagi teoretyczne
+#8.7.2. Wybór optymalnego promienia
+
+s <- split(mm_s) # dzielenie na 20 różnych rozkładów 
+s$F$marks <- as.factor(rep("F", 82)) # attaching mark values
+s$G$marks <- as.factor(rep("G", 204))
+s$M$marks <- as.factor(rep("M", 46))
+trzy_branze <- superimpose(s$F, s$G, s$M) # większy wzorzec z 3 branż
+fm <- superimpose(s$F, s$M) # pattern of F and M industries
+fg <- superimpose(s$F, s$G) # pattern of F and G industries
+mg <- superimpose(s$G, s$M) # pattern of M and G industries
+
+#8.7.3. Promień oddziaływania wewnątrz-sektorowego
+
+# połączony rozkład punktowy z trzema wartościami 
+RR <- data.frame(R=seq(30,40 ,by=0.05)) # określenie przedziałów
+MS <- function(R) { MultiStrauss(radii=diag(c(R,R,R))) } # z interakcjami 
+pm <- profilepl(RR, MS, X.r2~marks, verbose=FALSE) # optimalizacja
+pm # sugerowany promień interackji wewnątrz sektora to 30.55 km
+
+# sprawdzanie promienia dla każdego sektora osobno
+r1 <- seq(30,40,by=0.05)
+D1 <- data.frame(r=r1)
+fp1 <- profilepl(D1, Strauss, s$F ~ 1)
+fp1 # 30.55 km for F industry
+
+r2 <- seq(30,40,by=0.05)
+D2 <- data.frame(r=r2)
+fp2 <- profilepl(D2, Strauss, s$G ~ 1, verbose=FALSE)
+fp2 # 30.9 km for G industry
+
+r3 <- seq(30,40,by=0.05)
+D3 <- data.frame(r=r3)
+fp3 <- profilepl(D3, Strauss, s$M ~ 1, verbose=FALSE)
+fp3 # 30 km for M industry
+
+#8.7.4. Promień interakcji między sektorami
+
+r4 <- seq(30,40,by=0.01)
+D4 <- data.frame(r=r4)
+fp4<-profilepl(D4, Strauss, fm~marks, aic=TRUE, fast=TRUE, verbose=FALSE)
+fp4 # 30 km
+r5 <- seq(30,40,by=0.01)
+D5 <- data.frame(r=r5)
+fp5<-profilepl(D5, Strauss, fg~marks, aic=TRUE, fast=TRUE, verbose=FALSE)
+fp5 # 30.54 km
+
+r6<-seq(30,40,by=0.01)
+D6<-data.frame(r=r6)
+fp6<-profilepl(D3, Strauss, mg~marks, aic=TRUE, fast=TRUE, verbose=FALSE)
+fp6 # 30.05 km
+
+#8.7.5. Oszacowania i wyniki
+#8.7.6. Model bez interakcji pomiędzy sektorami
+
+rr1 <- diag(c(30.4, 30.4, 30.4))
+fit1 <- ppm(X.r2~marks, MultiStrauss(rr1))
+fit1
+rr2 <- diag(c(30.55, 30.45, 30.9))
+fit2 <- ppm(X.r2~marks, MultiStrauss(rr2))
+fit2
+
+# trend addytywny
+rr3 <- diag(c(30.55, 30.45, 30.9))
+fit3 <- ppm(X.r2~marks+x, MultiStrauss(rr3))
+fit3
+
+# trend multiplikatywny
+rr4 <- diag(c(30.55, 30.45, 30.9))
+fit4 <- ppm(X.r2~marks*x, MultiStrauss(rr4))
+fit4
+
+#8.7.7. Model ze wszystkimi możliwymi interakcjami
+
+tt1<-matrix(c(30.55, 30.54, 30, 30.54, 30.45, 30.05, 30, 30.05, 30.9), nrow=3, ncol=3)
+fit5 <- ppm(X.r2~marks, MultiStrauss(tt1))
+fit5
+
+### trend addytywny
+tt1<-matrix(c(30.55, 30.54, 30, 30.54, 30.45, 30.05, 30, 30.05, 30.9), nrow=3, ncol=3)
+fit6<-ppm(X.r2~marks+x, MultiStrauss(tt1))
+fit6
+
+### trend multiplikatywny
+tt1<-matrix(c(30.55, 30.54, 30, 30.54, 30.45, 30.05, 30, 30.05, 30.9), nrow=3, ncol=3)
+fit7<-ppm(X.r2~marks*x, MultiStrauss(tt1))
+fit7
+
+#8.8.Metody interpolacji przestrzennej - kriging
+#8.8.1. Podstawowe definicje
+#8.8.2. Opis wybranych metod krigingu
+
+summary(firmy$zatr)
+
+#8.8.3. Przygotowanie danych do badań
+
+library(sp)
+# konwersja obiektu ‘firmy’ do klasy SpatialPointsDataFrame
+coordinates(firmy) <- ~coords.x1+coords.x2
+bubble(firmy, "zatr", maxsize=2.5, main ="Poziom zatrudnienia w firmach \n z województwa lubelskiego", key.entries=5*c(1,6,30,120,300), alpha=1/2)
+
+table(firmy$zatr)
+# czyszczenie danych
+firmy <- firmy[ which(firmy$zatr!=5),]
+firmy <- firmy[ which(firmy$zatr!=600),]
+firmy <- firmy[ which(firmy$zatr!=1500),]
+	
+#8.8.4. Oszacowanie i dyskusja
+
+# utworzenie zmiennej losowej z rozkładu jednostajnego [0,1]
+firmy$r<-runif(dim(firmy)[1])
+# nowe obiekty są klasy SpatialPointsDataFrame:
+input <- firmy[firmy$r<0.8, ] # wybranie 80% danych na zbiór treningowy
+output <- firmy[firmy$r>0.8, ] # wybranie 20% danych na zbiór testowy
+
+# wykres krigingu danych wymaga konturu województwa
+# wczytywanie granic w shapefile i konwersja do klasy owin
+library(rgdal)
+library(sp)
+library(spatstat)
+
+woj <-readOGR(".","wojewodztwa") # 16 jedn. 
+woj.df<-as.data.frame(woj)
+region<-woj[woj.df$jpt_nazwa_=="lubelskie",]
+region<-spTransform(region, CRS("+proj=longlat +datum=WGS84"))
+W <- as(region, "owin")
+
+# utworzenie wykresu
+plot(W, main="In-sample and out-of-sample data")
+points(input, pch=16)
+points(output, col="red", add=TRUE, pch=16)
+legend("left", legend=c("input data", "output data"), col=c("black", "red"), pch=16)
+
+library(automap)
+
+# zwykły kriging (ordinary kriging)
+ok.var <- autofitVariogram(zatr~1, input)
+plot(ok.var)
+
+# uniwersalny kriging oparty na funkcji współrzędnych Kartezjańskich
+uk.var.1 <- autofitVariogram(zatr~coords.x1+coords.x2, input)
+plot(uk.var.1)
+
+# uniwersalny kriging oparty na odległości do Lublina
+uk.var.2 <- autofitVariogram(zatr~dist, input)
+plot(uk.var.2)
+
+## zwykły kriging 
+ok.xy <- autoKrige(zatr~1, input, output, verbose=FALSE)
+
+## uniwersalny kriging, x+y
+uk.xy <- autoKrige(zatr~x+y, input, output, verbose=FALSE)
+
+## uniwersalny kriging, dist
+uk.dist <- autoKrige(zatr~dist, input, output, verbose=FALSE)
+
+class(ok.xy$krige_output)
+names(ok.xy$krige_output)
+
+## original values
+result0<-automapPlot(output, "zatr", main="Original \n data")
+result0
+
+## ordinary
+result1<-automapPlot(ok.xy$krige_output, "var1.pred", main="Ordinary kriging")
+result1
+
+## universal, x+y
+result2<-automapPlot(ok.xy$krige_output, "var1.pred", main="Universal kriging, \n Cartesian coordinates function")
+result2
+
+## universal, dist
+result3<-automapPlot(ok.xy$krige_output, "var1.pred", main="Universal kriging, \n distance to Lublin")
+result3
+
+library(Metrics)
+
+rmse_ord <- rmse(output$zatr, ok.xy$krige_output@data$var1.pred)
+rmse_un_xy <- rmse(output$zatr, uk.xy$krige_output@data$var1.pred)
+rmse_un_dist <- rmse(output$zatr, uk.dist$krige_output@data$var1.pred)
+
+rmse_ord
+rmse_un_xy
+rmse_un_dist

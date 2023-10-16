@@ -1,0 +1,1000 @@
+##############################################
+#Applied Spatial Statistics and Econometrics: Data Analysis in R (Routledge, 2020) 
+#Przestrzenne metody ilościowe w R: statystyka, ekonometria, uczenie maszynowe, analiza danych (CeDeWu, 2020)
+#Editor: Katarzyna Kopczewska 
+#Authors: Katarzyna Kopczewska, Maria Kubara, Piotr Ćwiakowski, Mateusz Kopyt, Piotr Wójcik, Alessandro Festi, Kateryna Zabarina
+#This book is a part of project supported by the Polish National Science Center (NCN) on „Spatial econometric models with fixed and changing neighborhood structure. Application for real estate valuation and business location” (OPUS 12, contract no. UMO-2016/23/B/ HS4/02363).
+#All sample data used in the book and the codes presented in the content of the book were placed on https://github.com/kkopczewska/spatial_book 
+##############################################
+
+#Chapter 5
+#Applied spatial econometrics
+#Katarzyna Kopczewska, orcid.org/0000-0003-1065-1790
+
+#5.1 Added value from spatial modelling and classes of models
+#5.2 Basic cross-sectional models
+#5.2.1 Estimation
+
+#eq1<-average salary (Poland=100) ~ 
++ population_in_production_age_to_post_production_age 
++ number_of_firms_to_population_in_production_age
++ per_capita_public_investment(Poland=100) 
++ share_of_employment_in_services 
++ share_of_employment_in_agriculture
++ share_of_employed_to_population 
++ distance 
++ population_density(Poland=100) 
++ unemployment rate
+
+#eq1<-XA14 ~ XA08/XA09 + XA13 + (XA05/XA06)/mean(XA05/XA06) + (XA18+XA19+XA20)/XA15 + XA16/XA15 + XA15/XA06 + dist + XA10/mean(XA10) + XA21
+
+data<-read.csv("data_nts4_2019.csv", header=TRUE, dec=",", sep=";")
+sub<-data[data$year==2017, ]
+
+sub$y<-sub$XA14
+sub$x1<-sub$XA08/sub$XA09
+sub$x2<-sub$XA13
+sub$x3<-(sub$XA05/sub$XA06)/mean(sub$XA05/sub$XA06)
+sub$x4<-(sub$XA18+sub$XA19+sub$XA20)/sub$XA15
+sub$x5<-sub$XA16/sub$XA15
+sub$x6<-sub$XA15/sub$XA06
+sub$x7<-sub$dist
+sub$x8<-sub$XA10/mean(sub$XA10)
+sub$x9<-sub$XA21
+
+eq1<-y~x1+x2+x3+x4+x5+x6+x7+x8+x9  # equation for the estimation 
+
+regdata<-sub[,c("y", "x1", "x2", "x3", "x4", "x5","x6", "x7", "x8", "x9")]
+
+library(PerformanceAnalytics)
+chart.Correlation(regdata, histogram=TRUE, pch=19) # Fig.5.3
+
+model.lm<-lm(eq1, data=sub)
+summary(model.lm)
+library(spdep)
+library(spatialreg)
+library(rgdal)
+pov<-readOGR(".", "powiaty") # 380 units
+pov<- spTransform(pov, CRS("+proj=longlat +datum=NAD83"))
+cont.nb<-poly2nb(as(pov, "SpatialPolygons")) 	# from the spdep:: package
+cont.listw<-nb2listw(cont.nb, style="W")		# from the spdep:: package
+
+# Manski model (all three spatial coefficients)
+# spatial lag Y (rho)
+# spatial lags X (theta)
+# spatial autocorrelation of error (lambda)
+
+model.GNS<-sacsarlm(eq1, data=sub, listw=cont.listw, type="sacmixed")  
+summary(model.GNS, Nagelkerke=TRUE)
+
+model.GNS$logLik_lm.model	# logLik of the OLS model and degrees of freedom of the LR test
+
+model.GNS$LL			# logLik of the GNS model
+
+# SDM model (two spatial coefficients)
+# spatial lag Y (rho ρ)
+# spatial lags X (theta θ) 
+
+model.SDM<-lagsarlm(eq1, data=sub, listw=cont.listw, type="mixed", tol.solve=1.0e-20, method="LU")  
+summary(model.SDM, Nagelkerke=TRUE)
+
+# Manski model (all three spatial coefficients)
+# spatial lag Y (rho)
+# spatial lags X (theta)
+# spatial autocorrelation of error (lambda)
+model.GNS<-sacsarlm(eq1, data=sub, listw=cont.listw, type="sacmixed")
+summary(model.GNS, correlation=TRUE)  
+
+# SAC model (two spatial coefficients)
+# spatial lag Y (rho)
+# spatial autocorrelation of error (lambda)
+model.SAC<-sacsarlm(eq1, data=sub, listw=cont.listw, method="LU", tol.solve=1.0e-20)  
+
+# SDM model (two spatial coefficients)
+# spatial lag Y (rho ρ)
+# spatial lags X (theta θ) 
+model.SDM<-lagsarlm(eq1, data=sub, listw=cont.listw, type="mixed", tol.solve=1.0e-20, method="LU")  
+
+# SDEM model (two spatial coefficients)
+# spatial lags X (theta)
+# spatial autocorrelation of error (lambda)
+model.SDEM<-errorsarlm(eq1, data=sub, listw=cont.listw, etype="emixed", method="LU", tol.solve=1.0e-20)  
+
+# SAR model (one spatial factor)
+# spatial lag Y (rho)
+model.SAR<-lagsarlm(eq1, data=sub, listw=cont.listw)  
+
+# SLX model (one spatial factor)
+# spatial lags X (theta) 
+model.SLX<-lmSLX(eq1, data=sub, listw=cont.listw)  
+
+# SEM model (one spatial factor)
+# spatial autocorrelation of error (lambda)
+model.SEM<-errorsarlm(eq1, data=sub, listw=cont.listw)  
+
+# creating time-space lag
+sub0<-data[data$year==2016, ]
+sub$y.stlag<-lag.listw(cont.listw, sub0$XA14)
+
+eq1<-y~x1+x2+x3+x4+x5+x6+x7+x8+x9  # form of the regression equation
+eq2<-y~x1+x2+x3+x4+x5+x6+x7+x8+x9+y.stlag  # form of the regression equation
+
+# SDM model (two spatial factors rho and theta)
+# additionally time-space lag y (y.stlag)
+model.SDMst<-lagsarlm(eq2, data=sub, listw=cont.listw, type="mixed", tol.solve=1.0e-20, method="LU")  
+summary(model.SDMst)
+
+# impacts dla SDM
+model.SDM<-lagsarlm(eq1, data=sub, listw=cont.listw, type="mixed", tol.solve=1.0e-20, method="LU")  
+
+W.c<-as(as_dgRMatrix_listw(cont.listw), "CsparseMatrix") 
+trMat<-trW(W.c, type="mult") 
+model.SDM.imp<-impacts(model.SDM, tr=trMat, R=2000)
+summary(model.SDM.imp, zstats=TRUE, short=TRUE)
+
+a<-model.SDM.imp$res$direct	# direct effects only
+b<-model.SDM.imp$res$indirect	# only indirect effects
+c<-model.SDM.imp$res$total	# only total effects
+a/c 					# share of direct effect in the total
+abs(a)/abs(b)		# relation of direct to indirect effects
+
+#5.2.2 Quality assessment of spatial models 
+#5.2.2.1 Information criteria and pseudo R2 in assessing model fit
+
+# SAR model (one spatial factor rho)
+model.SAR<-lagsarlm(eq1, data=sub, listw=cont.listw)  
+AIC(model.SAR)
+BIC(model.SAR)
+attributes(model.SAR)
+model.SAR$AIC_lm.model
+logLik(model.SAR)
+model.SAR$LL
+AIC(model.lm, model.SAR, model.SDM)  # AIC information criteria
+BIC(model.lm, model.SAR, model.SDM)  # BIC information criteria
+anova.sarlm(model.lm, model.SAR, model.SDM)  # comparison of AIC and logLik 
+
+out1<-anova.sarlm( model.lm, model.SAR, model.SDM )  
+out2<-BIC(model.lm, model.SAR, model.SDM) 
+out3<-cbind(out1, out2) # combination of objects 
+out3 # displaying the result
+
+#5.2.2.2 Test for heteroskedasticity of model residuals
+
+library(lmtest)
+model.lm<-lm(eq1, data=sub)  
+bptest(model.lm)			# BP test for residuals from the OLS model
+
+# SAC model (two spatial coefficients rho and lambda) 
+model.SAC<-sacsarlm(eq1, data=sub, listw=cont.listw, method="LU")  
+bptest.sarlm(model.SAC)		# BP test for residuals from the SAC model
+
+# LOSH statistics for the rest of the model
+losh.stat.SAC<-LOSH(model.SAC$residuals, cont.listw, a=2, var_hi=TRUE, zero.policy=TRUE, na.action=na.exclude)
+
+losh.stat.LM<-LOSH(model.lm$residuals, cont.listw, a=2, var_hi=TRUE, zero.policy=TRUE, na.action=na.exclude)
+
+library(GISTools)
+choropleth(pov, losh.stat.SAC[,1], main="Spatial distribution of LOSH 
+statistics for residuals from the SAC model")
+shades<-auto.shading(losh.stat.SAC[,1])
+choro.legend(14, 50.25, shades , cex=0.65, bty="n")
+
+choropleth(pov, losh.stat.LM[,1], main="Spatial distribution of LOSH statistics for residuals from the LM model ")
+shades<-auto.shading(losh.stat.LM[,1])
+choro.legend(14, 50.25, shades, cex=0.65, bty="n")
+
+#5.2.2.3 Residual autocorrelation tests
+
+model.lm<-lm(eq1, data=sub)  
+lm.morantest(model.lm, cont.listw)	# Moran test for residuals from the OLS model
+
+# SAC model (two spatial coefficients rho and lambda)  
+model.SAC<-sacsarlm(eq1, data=sub, listw=cont.listw, method="LU")  
+moran.test(model.SAC$residuals, cont.listw)# Moran test for residuals from SAC
+
+# spatial distribution of residuals from the OLS linear model
+res<-model.lm$residuals
+brks<-c(min(res), mean(res)-sd(res), mean(res), mean(res)+sd(res), max(res))
+cols<-c("steelblue4","lightskyblue","thistle1","plum3")
+plot(pov, col=cols[findInterval(res,brks)])
+title(main=" Rest in the OLS model ")
+legend("bottomleft", legend=c("<mean-sd", "(mean-sd, mean)", "(mean, mean+sd)", ">mean+sd"), leglabs(brks1), fill=cols, bty="n", cex=0.8)
+
+# quick map of residuals divided into positive and negative
+pov$res<-res
+rng<-c(-100,0,100)
+cls<-brewer.pal(3, "PuBuGn")
+spplot(pov, "res", col.regions=cls, at=rng)
+title(main=" Positive and negative residuals in the OLS model ")
+
+# join.count test for residuals (positive vs. negative)
+resid<-factor(cut(res, breaks=c(-100, 0, 100),
+ 	labels=c("Negative", "positive")))
+joincount.test(resid, cont.listw)
+
+#5.2.2.4 LM tests for model type selection
+
+lm.LMtests(model.lm, cont.listw, test="all")
+summary(lm.LMtests(model.lm, cont.listw, test="all"))
+
+#5.2.2.5 LR and Wald tests for model restrictions
+
+# unlimited model
+# Manski model (three spatial coefficients - lambda, rho, theta) 
+model.GNS<-sacsarlm(eq1, data=sub, listw=cont.listw, type="sacmixed")  
+
+# restricted model
+# SDM model (two spatial coefficients rho and theta) 
+model.SDM<-lagsarlm(eq1, data=sub, listw=cont.listw, type="mixed", tol.solve=1.0e-20, method="LU")  
+
+LR.sarlm(model.GNS, model.SDM) # comparison of the two indicated models
+Wald1.sarlm(model.SDM)	# comparison of the indicated model with OLS
+LR1.sarlm(model.SDM) # comparison of the indicated model with OLS
+
+#5.2.3 Selection of spatial weight matrix and modelling of diffusion strength
+
+crds<-coordinates(pov)
+
+pov.k.sym.listw<-nb2listw(make.sym.nb(knn2nb(knearneigh(crds, k=10))))  
+model.SAC.10<-sacsarlm(eq1, data=sub, listw=pov.k.sym.listw, method="LU")  
+
+pov.k.sym.listw<-nb2listw(make.sym.nb(knn2nb(knearneigh(crds, k=20))))  
+model.SAC.20<-sacsarlm(eq1, data=sub, listw=pov.k.sym.listw, method="LU")  
+
+pov.k.sym.listw<-nb2listw(make.sym.nb(knn2nb(knearneigh(crds, k=30))))  
+model.SAC.30<-sacsarlm(eq1, data=sub, listw=pov.k.sym.listw, method="LU")  
+
+pov.k.sym.listw<-nb2listw(make.sym.nb(knn2nb(knearneigh(crds, k=40))))  
+model.SAC.40<-sacsarlm(eq1, data=sub, listw=pov.k.sym.listw, method="LU")  
+
+pov.k.sym.listw<-nb2listw(make.sym.nb(knn2nb(knearneigh(crds, k=50))))  
+model.SAC.50<-sacsarlm(eq1, data=sub, listw=pov.k.sym.listw, method="LU")  
+
+pov.k.sym.listw<-nb2listw(make.sym.nb(knn2nb(knearneigh(crds, k=60))))  
+model.SAC.60<-sacsarlm(eq1, data=sub, listw=pov.k.sym.listw, method="LU")  
+
+pov.k.sym.listw<-nb2listw(make.sym.nb(knn2nb(knearneigh(crds, k=70))))  
+model.SAC.70<-sacsarlm(eq1, data=sub, listw=pov.k.sym.listw, method="LU")  
+
+pov.k.sym.listw<-nb2listw(make.sym.nb(knn2nb(knearneigh(crds, k=80))))  
+model.SAC.80<-sacsarlm(eq1, data=sub, listw=pov.k.sym.listw, method="LU")  
+
+pov.k.sym.listw<-nb2listw(make.sym.nb(knn2nb(knearneigh(crds, k=90))))  
+model.SAC.90<-sacsarlm(eq1, data=sub, listw=pov.k.sym.listw, method="LU")  
+
+pov.k.sym.listw<-nb2listw(make.sym.nb(knn2nb(knearneigh(crds, k=100))))  
+model.SAC.100<-sacsarlm(eq1, data=sub, listw=pov.k.sym.listw, method="LU")  
+
+out<-anova.sarlm(model.SAC.10, model.SAC.20, model.SAC.30, model.SAC.40, model.SAC.50, model.SAC.60, model.SAC.70, model.SAC.80, model.SAC.90, model.SAC.100)
+
+out<-cbind(out, lambda=c(model.SAC.10$lambda, model.SAC.20$lambda, model.SAC.30$lambda, model.SAC.40$lambda, model.SAC.50$lambda, model.SAC.60$lambda, model.SAC.70$lambda, model.SAC.80$lambda, model.SAC.90$lambda, model.SAC.100$lambda), rho=c(model.SAC.10$rho, model.SAC.20$rho, model.SAC.30$rho, model.SAC.40$rho, model.SAC.50$rho, model.SAC.60$rho, model.SAC.70$rho, model.SAC.80$rho, model.SAC.90$rho, model.SAC.100$rho))
+
+out
+
+# graph of spatial parameters in subsequent models – Fig.5.4a
+plot((1:10)*10, out[,5], type="l", ylim=c(-0.8,0.4), xlab = "knn number of neighbours", ylab = "spatial parameters")
+lines((1:10)*10, out[,6], lwd=2)
+legend("bottomleft", legend=c("lambda", "rho"), lty=c(1,1), lwd=c(1,2), bty="n")
+abline(h=(-8:4)/10, lty=3, col="grey80")
+
+# AIC information criteria chart in subsequent models - Fig.5.4b
+plot((1:10)*10, out[,3], type="l", ylim=c(2750,2770), xlab = "number of neighbours knn", ylab="AIC", lwd=2)
+legend("bottomleft", legend=c("AIC"), lty=1, lwd=2, bty="n")
+abline(h=c(2750,2755,2760, 2765, 2770), lty=3, col="grey80")
+
+#5.2.4 Forecasts in spatial models
+
+# SDM model (two spatial coefficients, rho and theta) 
+model.SDM<-lagsarlm(eq1, data=sub, listw=cont.listw, type="mixed", tol.solve=1.0e-20, method="LU")  
+
+# SDEM model (two spatial coefficients, theta and lambda) 
+model.SDEM<-errorsarlm(eq1, data=sub, listw=cont.listw, etype="emixed", method="LU")  
+
+# SAR model (one spatial factor rho) 
+model.SAR<-lagsarlm(eq1, data=sub, listw=cont.listw)  
+
+# SEM model (one lambda spatial coefficient) 
+model.SEM<-errorsarlm(eq1, data=sub, listw=cont.listw)  
+
+model.SDM.p<-predict.sarlm(model.SDM)
+model.SDEM.p<-predict.sarlm(model.SDEM)
+model.SAR.p<-predict.sarlm(model.SAR)
+model.SEM.p<-predict.sarlm(model.SEM)
+
+model.SEM.p
+
+library(Metrics)
+vec<-c("model.SDM.p", "model.SDEM.p", "model.SAR.p", "model.SEM.p")
+metrics<-matrix(0, nrow=4, ncol=5)
+rownames(metrics)<-vec
+colnames(metrics)<-c("bias", "bias%", "MAE","MAPE", "RMSE")
+for(i in 1:4){
+metrics[i,1]<-bias(sub$y, get(vec[i]))
+metrics[i,2]<-percent_bias(sub$y, get(vec[i]))
+metrics[i,3]<-mae(sub$y, get(vec[i]))
+metrics[i,4]<-mape(sub$y, get(vec[i]))
+metrics[i,5]<-rmse(sub$y, get(vec[i]))}
+metrics
+
+#5.2.5 Causality
+#5.3 Selected specifications of cross-sectional spatial models
+#5.3.1 Uni-directional spatial interaction models
+
+# drawing of core cities and diffusion directions Fig.5.9a
+voi<-readOGR(".", "wojewodztwa") # 16 units 
+voi<- spTransform(voi, CRS("+proj=longlat +datum=NAD83"))
+par(mar=c(2,1,1,1)) 	# setting narrow margins
+bins<-c(0,1)
+variable<- data$core_city[data$year==2017]
+cols<-c("white", "red")
+plot(pov, col=cols[findInterval(variable, bins)])
+plot(voi, add=TRUE, lwd=2)
+
+# directional arrows
+crds<-coordinates(pov)
+city.id<-which(data$core_city==1 & data$year==2006)
+city.crds<-crds[city.id,]
+
+for(i in 1:4){
+arrows(city.crds[,1], city.crds[,2], city.crds[,1]+rnorm(16,0,0.35), city.crds[,2]+rnorm(16,0,0.35), angle=15, length=0.10, lwd=1, col="blue")}
+
+library(GISTools)
+library(RColorBrewer)
+
+# distance map of peripheral regions from central centres Fig.5.5a
+variable <-data$dist[data$year==2017]
+shading<-auto.shading(variable, n=6, cols=rev(brewer.pal(6, "Spectral")))
+choropleth(pov, variable, shading=shading)
+choro.legend(15, 50, shading, cex=0.65, bty="n")
+plot(voi, add=TRUE, lwd=2)
+par(mar=c(5,4,4,2))	# return to typical margin settings
+
+# panel chart Fig.5.6a
+data$variable<-data$XA21 # unemployment rate
+
+# subsets by distance
+sub1<-data[data$core_city==1,] 			# capital of the region 
+sub2<-data[data$dist>=2 & data$dist<25, ] 	# distance up to 25 km 
+sub3<-data[data$dist>=25 & data$dist<50, ] 	# dist. between 25 and 50 km
+sub4<-data[data$dist>=50 & data$dist<100, ]	# dist. between 50 and 100 km
+sub5<-data[data$dist>=100, ] 				# dist. over 100 km
+
+# average values by years in subsets by distance
+msub1<-aggregate(sub1$variable, by=list(sub1$year), mean)
+msub2<-aggregate(sub2$variable, by=list(sub2$year), mean)
+msub3<-aggregate(sub3$variable, by=list(sub3$year), mean)
+msub4<-aggregate(sub4$variable, by=list(sub4$year), mean)
+msub5<-aggregate(sub5$variable, by=list(sub5$year), mean)
+
+# combination of average values into one object
+sub<-cbind(msub1, msub2$x, msub3$x, msub4$x, msub5$x)
+minsub<-min(sub[,2:5], na.rm=TRUE)
+maxsub<-max(sub[,2:5], na.rm=TRUE)
+
+# panel chart
+plot(msub1, type="n", ylim=c(0,21), xlab="   ", ylab="   ")
+lines(msub1[1:12,], lwd=2)
+lines(msub2[1:12,], lwd=2, lty=2)
+lines(msub3[1:12,], lty=1)
+lines(msub4[1:12,], lty=2)
+lines(msub5[1:12,], lty=3)
+
+title(main="Unemployment rate in poviats")
+legend("bottom", legend=c("core - main regional cities","poviats located up to 25 km from the core","poviats located between 25 and 50 km from the core","poviats located between 50 and 100 km from the core","poviats located more than 100 km from the core"), lty=c(1,2,1,2,3), lwd=c(2,2,1,1,1), bty="n", cex=0.8)
+
+# diagram of the phenomenon depending on the distance Fig.5.6b
+variable<-data$XA21[data$region_name=="Mazowieckie" & data$year==2017]
+dist<-data$dist[data$region_name=="Mazowieckie" & data$year==2017]
+population<-data$XA06[data$region_name=="Mazowieckie" & data$year==2017] / mean(data$XA06[data$region_name=="Mazowieckie" & data$year==2017])
+
+brks.pop<-c(0, 0.5,0.75, 1.00, 1.25, 2, 5, 20) #intervals for the population
+size<-brks.pop*1.6	# dot size scaling
+cols<-"chartreuse3"	# dot color
+plot(dist, variable, xlim=c(0,120),ylim=c(0,21), ylab="unemployment rate",
+xlab="distance of the poviat from the voivodeship city", col=cols, bg=cols,
+cex=size[findInterval(population, brks.pop)], pch=21)
+
+title(main="Unemployment rate in poviats")
+
+abline(h=(0:8)*5, lty=3, col="grey80")
+abline(v=(0:10)*20, lty=3, col="grey80")
+
+sub<-data[data$year==2017,]
+sub$variable<-sub$XA21/mean(sub$XA21, na.rm=TRUE)
+
+# visualization of the distance - phenomenon relation
+plot(log(sub$dist),log(sub$variable), main="log x, log y")
+plot(log(sub$dist), sub$variable, main="x, log y")
+plot(sub$dist, sub$variable, main="x, y")
+
+# matrix of spatial weights according to the contiguity criterion 
+cont.nb<-poly2nb(as(pov, "SpatialPolygons")) 	# from the spdep:: package 
+cont.listw<-nb2listw(cont.nb, style="W")		# from the spdep:: package
+
+# model of polynomial distance (multinominal distance)
+mod.multi.asp<-glm(variable~dist+I(dist^2)+I(dist^3)+ I(dist^4), data=sub) 
+mod.multi.sp<-errorsarlm(variable~dist+I(dist^2)+ I(dist^3)+ I(dist^4), data=sub, cont.listw, tol.solve=2e-40)
+
+# power model
+mod.power.asp<-glm(log1p(variable)~log1p(dist), data=sub)
+mod.power.sp<-errorsarlm(log1p(variable)~log1p(dist), data=sub, cont.listw)
+
+# exponential model
+mod.exp.asp<-glm(log1p(variable)~dist, data=sub)
+mod.exp.sp<-errorsarlm(log1p(variable)~dist, data=sub, cont.listw)
+
+# goodness-of-fit measures
+out<-matrix(0, nrow=2, ncol=6)
+colnames(out)<-c("multi.asp", "multi.sp", "power.asp", "power.sp", "exp.asp", "exp.sp")
+rownames(out)<-c("SRMSE", "lambda")
+
+a<-mean(sub$variable)
+b<-dim(sub)[1]
+c<-sub$variable
+
+out[1,1]<-sqrt(sum((mod.multi.asp$fitted.values-c)^2)/b)/a
+out[1,2]<-sqrt(sum((mod.multi.sp$fitted.values-c)^2)/b)/a 
+out[1,3]<-sqrt(sum((mod.power.asp$fitted.values-c)^2)/b)/a
+out[1,4]<-sqrt(sum((mod.power.sp$fitted.values-c)^2)/b)/a 
+out[1,5]<-sqrt(sum((mod.exp.asp$fitted.values-c)^2)/b)/a 
+out[1,6]<-sqrt(sum((mod.exp.sp$fitted.values-c)^2)/b)/a
+
+out[2,2]<- mod.multi.sp$lambda
+out[2,4]<- mod.power.sp$lambda
+out[2,6]<- mod.exp.sp$lambda
+out
+
+# visualization of model fit – Fig.5.7
+plot(sub$dist, sub$variable, main="OLS, multinominal, fitted values")
+points(sub$dist, mod.multi.asp$fitted.values, col="red")
+abline(h=1, lty=3)
+
+plot(sub$dist, sub$variable, main="SEM, multinominal, fitted values")
+points(sub$dist, mod.multi.sp$fitted.values, col="red")
+abline(h=1, lty=3)
+
+plot(log1p(sub$dist), log1p(sub$variable), main="OLS, power, fitted values")
+points(log1p(sub$dist), mod.power.asp$fitted.values, col="red")
+abline(h=1, lty=3)
+
+plot(log1p(sub$dist), log1p(sub$variable), main="SEM, power, fitted values")
+points(log1p(sub$dist), mod.power.sp$fitted.values, col="red")
+abline(h=1, lty=3)
+
+plot(sub$dist, log1p(sub$variable), main="OLS, exponential, fitted values")
+points(sub$dist, mod.exp.asp$fitted.values, col="red")
+abline(h=1, lty=3)
+
+plot(sub$dist, log1p(sub$variable), main="SEM, exponential, fitted values")
+points(sub$dist, mod.exp.sp$fitted.values, col="red")
+abline(h=1, lty=3)
+
+# spatial polynomial models
+sub<-data[data$year==2017,]
+sub$variable<-sub$XA21/mean(sub$XA21, na.rm=TRUE)
+mod.multi.sp.2017<-errorsarlm(variable~poly(dist,4), data=sub, cont.listw, tol.solve=2e-40)
+sqrt(sum((mod.multi.sp.2017$fitted.values-sub$variable)^2)/dim(sub)[1])/ mean(sub$variable)
+#[1] 0.3842633
+
+sub<-data[data$year==2006,]
+sub$variable<-sub$XA21/mean(sub$XA21, na.rm=TRUE)
+mod.multi.sp.2006<-errorsarlm(variable~poly(dist,4), data=sub, cont.listw, tol.solve=2e-40)
+sqrt(sum((mod.multi.sp.2006$fitted.values-sub$variable)^2)/dim(sub)[1])/ mean(sub$variable)
+#[1] 0.2653964
+
+summary(mod.multi.sp.2006)
+
+# matching visualization
+plot(sub$dist, mod.multi.sp.2017$fitted.values, col="red", pch=".", cex=1.5)
+lines(smooth.spline(sub$dist, mod.multi.sp.2017$fitted.values, spar=0.99), col="red")
+points(sub$dist, mod.multi.sp.2006$fitted.values, col="black", pch=".", cex=1.3)
+lines(smooth.spline(sub$dist, mod.multi.sp.2006$fitted.values, spar=0.99), col="black")
+abline(h=1, lty=3)
+legend("bottomright", legend=c("2006", "2017"), col=c("black", "red"), lty=c(1,1), bty="n")
+
+#5.3.2 Cumulative models
+
+# creating simple quotients of two variables (or without changes)
+data$y<-data$XA01/data$XA06
+data$x1<-data$XA05/data$XA06
+data$x2<-data$XA14
+data$x3<-data$XA08/data$XA09
+data$x4<-data$XA13
+data$x5<-(data$XA18+data$XA19+data$XA20)/data$XA15
+data$x6<-data$dist
+data$x8<-data$XA21
+
+# subsets for each year
+sub10<-data[data$year==2010, ]
+sub11<-data[data$year==2011, ]
+sub12<-data[data$year==2012, ]
+sub13<-data[data$year==2013, ]
+sub14<-data[data$year==2014, ]
+sub15<-data[data$year==2015, ]
+sub16<-data[data$year==2016, ]
+sub17<-data[data$year==2017, ]
+
+# variables Poland=100%, referring to the average from a given year
+sub10$x7<-sub10$XA10/mean(sub10$XA10, na.rm=TRUE)
+sub11$x7<-sub11$XA10/mean(sub11$XA10, na.rm=TRUE)
+sub12$x7<-sub12$XA10/mean(sub12$XA10, na.rm=TRUE)
+sub13$x7<-sub13$XA10/mean(sub13$XA10, na.rm=TRUE)
+sub14$x7<-sub14$XA10/mean(sub14$XA10, na.rm=TRUE)
+sub15$x7<-sub15$XA10/mean(sub15$XA10, na.rm=TRUE)
+sub16$x7<-sub16$XA10/mean(sub16$XA10, na.rm=TRUE)
+sub17$x7<-sub17$XA10/mean(sub17$XA10, na.rm=TRUE)
+
+# cumulative dependent variable
+sub10$y.cum<-sub10$y
+sub11$y.cum<-sub10$y+sub11$y
+sub12$y.cum<-sub10$y+sub11$y+sub12$y
+sub13$y.cum<-sub10$y+sub11$y+sub12$y+sub13$y
+sub14$y.cum<-sub10$y+sub11$y+sub12$y+sub13$y+sub14$y
+sub15$y.cum<-sub10$y+sub11$y+sub12$y+sub13$y+sub14$y+sub15$y
+sub16$y.cum<-sub10$y+sub11$y+sub12$y+sub13$y+sub14$y+sub15$y+sub16$y
+sub17$y.cum<-sub10$y+sub11$y+sub12$y+sub13$y+sub14$y+sub15$y+sub16$y+ sub17$y
+
+# cumulative explanatory variable
+sub10$x1.cum<-sub10$x1
+sub11$x1.cum<-sub10$x1+sub11$x1
+sub12$x1.cum<-sub10$x1+sub11$x1+sub12$x1
+sub13$x1.cum<-sub10$x1+sub11$x1+sub12$x1+sub13$x1
+sub14$x1.cum<-sub10$x1+sub11$x1+sub12$x1+sub13$x1+sub14$x1
+sub15$x1.cum<-sub10$x1+sub11$x1+sub12$x1+sub13$x1+sub14$x1+sub15$x1
+sub16$x1.cum<-sub10$x1+sub11$x1+sub12$x1+sub13$x1+sub14$x1+sub15$x1 +sub16$x1
+sub17$x1.cum<-sub10$x1+sub11$x1+sub12$x1+sub13$x1+sub14$x1+sub15$x1 +sub16$x1+ sub17$x1
+
+# model equation
+eq<-y.cum~x1.cum+x2+x3+x4+x5+x6+x7+x8 # form of a regression equation
+
+# contiguity spatial weights matrix
+cont.nb<-poly2nb(as(pov, "SpatialPolygons")) 	
+cont.listw<-nb2listw(cont.nb, style="W")		
+
+# model estimation for subsequent years
+m10<-errorsarlm(eq, data=sub10, cont.listw, etype="emixed", tol.solve=1e-20)
+m11<-errorsarlm(eq, data=sub11, cont.listw, etype="emixed", tol.solve=1e-20)
+m12<-errorsarlm(eq, data=sub12, cont.listw, etype="emixed", tol.solve=1e-20)
+m13<-errorsarlm(eq, data=sub13, cont.listw, etype="emixed", tol.solve=1e-20)
+m14<-errorsarlm(eq, data=sub14, cont.listw, etype="emixed", tol.solve=1e-20)
+m15<-errorsarlm(eq, data=sub15, cont.listw, etype="emixed", tol.solve=1e-20)
+m16<-errorsarlm(eq, data=sub16, cont.listw, etype="emixed", tol.solve=1e-20)
+m17<-errorsarlm(eq, data=sub17, cont.listw, etype="emixed", tol.solve=1e-20)
+
+# combining model results into one printout
+options(scipen=999, digits=2)
+result<-cbind(m10$coefficients, m11$coefficients, m12$coefficients, m13$coefficients, m14$coefficients, m15$coefficients, m16$coefficients, m17$coefficients)
+colnames(result)<-paste(rep("mod",times=8),2010:2017)
+lambda<-cbind(m10$lambda, m11$lambda, m12$lambda, m13$lambda, m14$lambda, m15$lambda, m16$lambda, m17$lambda)
+AIC<-cbind(AIC(m10), AIC(m11), AIC(m12), AIC(m13), AIC(m14), AIC(m15), AIC(m16), AIC(m17))
+result<-rbind(result,lambda, AIC)
+rownames(result)[19]<-"AIC"
+
+result
+
+# ratio of direct and indirect effects
+abs(result[2:9,])/abs(result[10:17,])
+
+#5.3.3 Bootstrapped models for big data
+
+# loading data on firms
+firms<-read.csv("geoloc_data_firms.csv", header=TRUE, dec=",", sep=";")
+voi<-readOGR(".", "wojewodztwa") # 16 units 
+voi<- spTransform(voi, CRS("+proj=longlat +datum=NAD83"))
+
+# set of additional parameters for non-aggregated sectors
+param<-data.frame(SEC_PKD7=c("A", "B", "C", "D" ,"E", "F", "G", "H", "I", "J", "K" ,"L", "M", "N", "O", "P", "Q", "R", "S"), SEK_agg=c("agri", "prod", "prod", "prod" ,"prod", "constr", "serv", "serv", "serv", "serv", "serv" ,"serv", "serv", "serv", "serv", "serv", "serv", "serv", "serv"), roa_ind=c(2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,8.5,9,9.5,10,10.5,11))
+firms1<-merge(firms, param, by="SEC_PKD7") # merging parameters and data
+
+# set of additional parameters for aggregated sectors
+param2<-data.frame(SEK_agg=c("agri", "prod", "constr", "serv"), roa_sec=c(2,3.5,5,8))
+firms1<-merge(firms1, param2, by="SEK_agg") # merging parameters and data
+# premium for central location
+firms1$roa_geo<-ifelse(firms1$poviat=="powiat Lublin", 1.5,0)
+firms1$roa_param<-firms1$roa_sec+firms1$roa_geo # final ROA with premium
+
+# drawing ROA profitability based on the assumed parameter
+for(i in 1:dim(firms1)){
+firms1$roa[i]<-rnorm(1, firms1$roa_param[i], 0.045)}
+
+# dummy variables for sectors
+firms1$agri<-ifelse(firms1$SEK_agg=="agri",1,0)
+firms1$prod<-ifelse(firms1$SEK_agg=="prod",1,0)
+firms1$constr<-ifelse(firms1$SEK_agg=="constr",1,0)
+firms1$serv<-ifelse(firms1$SEK_agg=="serv",1,0)
+
+library(spdep)
+# Euclidean distance between a point and the centre of Lublin
+coords<-as.matrix(data.frame(x=firms1$coords.x1, y=firms1$coords.x2))
+core<-c(22.5666700, 51.2500000) # coordinates of central Lublin
+firms1$dist<-spDistsN1(coords, core, longlat=TRUE)
+
+# randomly scattered locations (by epsilon) of observations
+epsilon.x<-rnorm(dim(firms1)[1], mean=0, sd=0.015)
+epsilon.y<-rnorm(dim(firms1)[1], mean=0, sd=0.015)
+firms1$xxe<-firms1[,24]+epsilon.x
+firms1$yye<-firms1[,25]+epsilon.y
+
+# random ordering of the firms set
+library(doBy)
+firms1$los<-runif(dim(firms1)[1], 0,1)
+firms1<-orderBy(~los, data=firms1)
+
+# division of firms into training (in) and test (out)
+firms1.in<-firms1[1:30000,]
+firms1.out<-firms1[30001:37374,]
+
+
+# simulation parameters (to be changed by the researcher)
+# parameters of simulation – change here the parameters
+n.col<-50 # number of iterations
+n.row<-800 # number of obs in a sample
+  
+# division of observations into k groups by k-means method
+firms1.in.crds<-firms1.in[,14:15] # geographical coordinates
+groups<-kmeans(firms1.in.crds, n.row/100) # based on geographic coordinates.
+firms1.in$kmean<-groups$cluster # clustering vector
+
+library(sampling)
+# ID matrix of observations drawn for each iteration
+# randomly selected with the loss() command from the sampling package:
+# randomized observations from groups determined by k-means
+selector<-matrix(0, nrow=n.row, ncol=n.col)
+for(i in 1:n.col){
+vec<-sample(1:dim(firms1.in)[1], n.row, replace=FALSE)
+x<-strata(firms1.in, "kmean", size=rep(100, times=n.row/100), method="srswor") # from sampling::
+selector[,i]<-x$ID_unit}
+
+# objects for saving estimation results
+coef.sdm<-matrix(0, nrow=n.col, ncol=11) # matrix of model coefficients
+error.sdm<-matrix(0, nrow=n.col, ncol=11) # matrix of standard errors
+fitted.sdm<-matrix(0, nrow=n.row, ncol=n.col) # matched values
+roa<-matrix(0, nrow=n.row, ncol=n.col) # matrix of y values
+other.sdm<-matrix(0, nrow=n.row, ncol=4) # AIC.sdm, BIC.sdm, czas.sdm, rho.sdm
+
+eq<-roa~empl+prod+constr+serv+dist # model structure
+
+library(spdep) # necessary for spatial regression
+library(spatialreg) # necessary for spatial regression
+
+# estimation in the loop of models with saving the results to objects
+for(i in 1:n.col){  # n.col defines the number of iterations
+datax<-firms1.in[selector[,i],] # selection of observation id for given iteration
+roa[,i]<-datax$roa # write y for each iteration
+
+# creating a matrix of spatial weights W for a subset of points
+crds<-as.matrix(firms1.in[selector[,i],14:15])  
+pkt.knn<-knearneigh(crds, k=5, longlat = NULL) # planar system, knn=5
+pkt.k.nb<-knn2nb(pkt.knn) 
+pkt.k.sym.nb<-make.sym.nb(pkt.k.nb) # matrix symmetry
+pkt.k.sym.listw<-nb2listw(pkt.k.sym.nb)
+
+# SDM model
+start.time <- Sys.time() # system time measurement
+model.sdm<-lagsarlm(eq, data=datax, pkt.k.sym.listw, method="LU", type="mixed")
+end.time <- Sys.time()
+time.sdm<- difftime(end.time, start.time, units="secs")
+
+# saving results
+coef.sdm[i,]<-model.sdm$coefficients
+error.sdm[i,]<-model.sdm$rest.se
+fitted.sdm[,i]<-model.sdm$fitted.values
+other.sdm[i,1]<-AIC(model.sdm) # AIC.sdm
+other.sdm[i,2]<-BIC(model.sdm) # BIC.sdm
+other.sdm[i,3]<-time.sdm
+other.sdm[i,4]<-model.sdm$rho
+}
+
+print(head(coef.sdm), digits=3)
+print(head(other.sdm), digits=3)
+
+library(cluster)
+library(clustertend)
+c1.sdm<-pam(cbind(coef.sdm, other.sdm[1:50,4]),1) # z pakietu cluster::
+summary(c1.sdm)
+
+c1.sdm$clustering # clustering vector
+c1.sdm$medoids # medoid model coefficients
+c1.sdm$id.med # medoid model number
+hopkins(cbind(coef.sdm, other.sdm[1:50,4]), n=nrow(coef.sdm)-1) # 
+
+# re-estimation of the best model
+# selection of data on which the medoid model was scored
+data.x<-firms1.in[selector[,c1.sdm$id.med],] 
+
+# comparison of empirical and matched y values 
+RAMSE.med.sdm<-(sum((firms1.in[selector[,c1.sdm$id.med],33]-fitted.sdm[,c1.sdm$id.med])^2)/n.row)^(0.5)  
+RAMSE.med.sdm
+#[1] 0.1217029
+
+crds<-as.matrix(data.x[,14:15]) # xy coordinates to the W matrix
+pkt.knn<-knearneigh(crds, k=5) # knn object
+pkt.k.nb<-knn2nb(pkt.knn) 
+pkt.k.sym.nb<-make.sym.nb(pkt.k.nb)
+pkt.k.sym.listw<-nb2listw(pkt.k.sym.nb)
+
+eq<-roa~unempl+prod+constr+serv+dist
+model.sdm<-lagsarlm(eq, data=data.x, pkt.k.sym.listw, method="LU", type="mixed")
+summary(model.sdm)
+moran.test(model.sdm$residuals, pkt.k.sym.listw)
+
+library(rgdal)
+library(spatstat)
+library(maptools)
+
+voi<-readOGR(".", "wojewodztwa") # 16 units
+voi<-spTransform(voi, CRS("+proj=longlat +datum=NAD83")) # spherical
+voi<-spTransform(voi, CRS("+proj=merc +datum=NAD83")) # planar
+region<-voi[voi@data$jpt_nazwa_=="lubelskie",] # one region only
+region.owin<-as.owin(region) # rgdal:: requires planar coordinates
+
+points<-data.frame(x=firms1.in[selector[,c1.sdm$id.med],14],
+y=firms1.in[selector[,c1.sdm$id.med],15])
+points.sp<-SpatialPoints(points) # new points in sp class - spherical
+proj4string(points.sp)<-CRS("+proj=longlat +datum=NAD83") # spherical
+points.sp<-spTransform(points.sp, CRS("+proj=merc +datum=NAD83")) # planar
+
+region.ppp<-ppp(x=points.sp@coords[,1], y=points.sp@coords[,2], window=region.owin) # points of ppp class
+
+region.tes<-dirichlet(region.ppp) # Dirichlet tesselation
+tes.poly<-as(region.tes, "SpatialPolygons") 
+proj4string(tes.poly)<-CRS("+proj=merc +datum=NAD83")
+tes.poly<-spTransform(tes.poly, CRS("+proj=merc +datum=NAD83")) #planar
+
+plot(region) # Fig.5.9a
+points(points.sp, pch=".")
+
+plot(region.tes, main=" ") # tessellation plot, Fig.5.9b
+plot(region.ppp, add=TRUE, pch=".", col="darkblue", cex=2)
+
+nnew<-100 # number of new points in the forecast
+
+forecasts1<-matrix(0, nrow=nnew, ncol=5)
+colnames(forecasts1)<-c("predicted y","real y","crds x","crds y", "diff")
+
+points.pred<-SpatialPoints(firms1.out[1:nnew, 14:15]) # new sp points
+proj4string(points.pred)<-CRS("+proj=longlat +datum=NAD83") # spherical
+points.pred<-spTransform(points.pred, CRS("+proj=merc +datum=NAD83"))
+a1<-over(points.pred, tes.poly) # assigning points to tessellation tiles
+head(a1)
+
+# completing the draw when NA occurs
+# determining the number of new points to be drawn (as from-to)
+a2<-nnew+1 # from …
+a3<-which(is.na(a1))
+a4<-a2+length(a3)-1  # to …
+points.pred2<-SpatialPoints(firms1.out[a2:a4, 14:15]) # new points
+proj4string(points.pred2)<-CRS("+proj=longlat +datum=NAD83") # spherical
+points.pred2<-spTransform(points.pred2, CRS("+proj=merc +datum=NAD83"))
+points.pred2
+a5<-over(points.pred2, tes.poly) # putting new points on the tile
+a5
+a1[which(is.na(a1))]<-a5 # overwriting with new points
+
+# loop for forecasts for new points
+# there is a separate match for each point
+for(i in 1:nnew){
+# point by point - assigning new data to the old data set
+data.x.new<-data.x
+xxx<-firms1.out[i, ]
+data.x.new[a1[i],]<-xxx
+rownames(data.x.new)<-1:dim(data.x.new)[1]
+
+# prediction for out-of-sample calibrated SDM model
+pred<-predict(model.sdm, newdata=data.x.new, listw=pkt.k.sym.listw, legacy.mixed=TRUE)
+pred[a1[i]] # prediction for a new point
+xxx[,33] # empirical y value of the new point
+
+forecasts1[i,1]<- pred[a1[i]] # predicted value of y
+forecasts1[i,2]<- xxx[,33] # empirical value of y
+forecasts1[i,3]<-xxx[,39] # x coordinates
+forecasts1[i,4]<-xxx[,40] # y coordinates
+}
+forecasts1[,5]<-(forecasts1[,1]-forecasts1[,2])^2
+RAMSE.sdm<-(mean(forecasts1[,5]))^0.5
+
+head(forecasts1)
+RAMSE.sdm
+
+#5.3.4 Models for grid data
+
+#a reminder of the loaded grid data for the population
+#loading grid for population and converting projections
+#pop<-readOGR(".", "PD_STAT_GRID_CELL_2011")
+#pop<-spTransform(pop, CRS("+proj=longlat +datum=NAD83"))
+#pop.df<-as.data.frame(pop) # extracting data to data.frame 
+#pop.grid<-as(pop, "SpatialPolygons") # extracting grid 
+
+#conversion to numerical data of subsequent columns of the data set
+#for(i in 1:12){  
+#pop.df[,i]<-as.numeric(as.character(pop.df[,i]))}
+
+##cutting the grid according to the contour of the lubelskie region
+#cutting the contour map
+voi.lub<-voi[voi@data$jpt_nazwa_=="lubelskie",]
+plot(voi.lub)
+
+lim<-over(pop.grid, voi.lub) # overlay of grid and contour
+summary(lim)
+a<-which(lim$jpt_nazwa_=="lubelskie") # rows which fulfill the criteria
+head(lim[a,])
+
+# cutting grid to regional contour
+pop.grid.lub<-pop.grid[lim$jpt_nazwa_=="lubelskie", ]
+class(pop.grid.lub) # sp class
+length(pop.grid.lub)
+
+## grid data limited as grid shapefile
+pop.df.lub<-pop.df[a, ]
+
+# Fig.5.10a - administrative contour and grid
+plot(pop.grid.lub)
+plot(voi.lub, add=TRUE, border="red")
+
+# Figure - values of the examined variable - the whole province
+library(GISTools)
+choropleth(pop.grid.lub, pop.df.lub$TOT)
+plot(voi.lub, add=TRUE)
+
+# Fig.5.10b - values of the examined variable - zoomed district 
+library(GISTools)
+plot(pow[pow@data$jpt_nazwa_=="powiat Lublin",])
+choropleth(pop.grid.lub, pop.df.lub$TOT, add=TRUE)
+plot(pow[pow@data$jpt_nazwa_=="powiat Lublin",], add=TRUE, lwd=2)
+
+## assignment and aggregation of point data according by grid cells
+#data reminder - points from REGON
+#dane<-read.csv("geoloc data.csv", header=TRUE, dec=",", sep=";")
+
+dane.sp<-dane1
+coordinates(dane.sp)<-c("coords.x1","coords.x2") # change of object class
+proj4string(dane.sp)<-CRS("+proj=longlat +datum=NAD83")
+pop.grid.lub<-spTransform(pop.grid.lub, CRS("+proj=longlat +datum=NAD83"))
+dane.sp<-spTransform(dane.sp, CRS("+proj=longlat +datum=NAD83"))
+
+# assigning points to grid
+locs.lim<-over(dane.sp, pop.grid.lub)
+head(locs.lim)
+summary(locs.lim)
+
+dane1$grid<-locs.lim  # adds a new (truncated) grid ID
+head(dane1)
+
+# preparation of objects with ordered data
+# summary of slot & ID number assignment
+aaa1<-lapply(pop.grid.lub@polygons, slot, "ID") 
+head(aaa1)
+
+# list of slot numbers
+aaa2<-unlist(lapply(pop.grid.lub@polygons, slot, "ID")) 
+pop.df.lub$ID<-1:25753
+
+# data aggregation by grid
+roa.ag<-aggregate(dane1$roa, by=list(dane1$grid), mean, na.rm=TRUE)
+pop.df.lub<-merge(pop.df.lub, roa.ag, by.x="ID", by.y="Group.1", all.x=TRUE)
+pop.df.lub$x[is.na(pop.df.lub$x)]<-0
+choropleth(pop.grid.lub, pop.df.lub$x)
+
+# change of the name of the added variable (by merge())
+ccc<-colnames(pop.df.lub) 
+n<-length(ccc)
+colnames(pop.df.lub)<-c(ccc[1:n-1], "roa")
+colnames(pop.df.lub)
+
+# spatial weights matrix as contiguity matrix for grid
+cont.nb<-poly2nb(pop.grid.lub, queen=T) #conversion from sp to nb class
+cont.listw<-nb2listw(cont.nb, style="W") 
+cont.listw #displays summary of matrix
+
+# variables included in the model
+pop.df.lub$pop.prod<-pop.df.lub$TOT_15_64/pop.df.lub$TOT
+pop.df.lub[is.na(pop.df.lub)]<-0
+pop.df.lub[is.infinite(pop.df.lub)]<-0
+pop.df.lub$pop.prod[which(pop.df.lub$pop.prod ==Inf)] <- 0
+
+# estimation of model on grid
+model<-errorsarlm(roa~FEM_RATIO+pop.prod, data=pop.df.lub, nb2listw(cont.nb),  zero.policy=TRUE, method="LU")
+summary(model, Nagelkerke=TRUE)
+
+#5.4 Spatial panel models
+
+library(spdep)
+library(rgdal)
+# loading data
+data<-read.csv("data_nts4_2019.csv", header=TRUE, dec=",", sep=";")
+pov<-readOGR(".", "powiaty") # 380 units 
+pov<- spTransform(pov, CRS("+proj=longlat +datum=NAD83"))
+
+# creating variables as described
+data$y<-data$XA14
+data$x1<-data$XA08/data$XA09
+data$x2<-data$XA13
+data$x4<-(data$XA18+data$XA19+data$XA20)/data$XA15
+data$x5<-data$XA16/data$XA15
+data$x6<-data$XA15/data$XA06
+data$x8<-data$XA21
+
+# variables based on periodic average
+a1<-data$XA05/data$XA06 # variable for analysis
+a2<-aggregate(a1, by=list(data$year), mean, na.rm=TRUE)
+a3<-rep(a2$x, each=380) # periodic average assigned to observations
+data$x3<-a1/a3 # variable index (Poland = 100%)
+
+b2<-aggregate(data$XA10, by=list(data$year), mean, na.rm=TRUE)
+b3<-rep(b2$x, each=380)
+data$x7<-data$XA10/b3
+
+# standardization of variables according to temporal parameters (µ, σ) 
+library(doBy)
+data$y.sc<-transformBy(~year, data=data, y=scale(y))$y
+data$x1.sc<-transformBy(~year, data=data, x1=scale(x1))$x1
+data$x2.sc<-transformBy(~year, data=data, x2=scale(x2))$x2
+data$x3.sc<-transformBy(~year, data=data, x3=scale(x3))$x3
+data$x4.sc<-transformBy(~year, data=data, x4=scale(x4))$x4
+data$x5.sc<-transformBy(~year, data=data, x5=scale(x5))$x5
+data$x6.sc<-transformBy(~year, data=data, x6=scale(x6))$x6
+data$x7.sc<-transformBy(~year, data=data, x7=scale(x7))$x7
+data$x8.sc<-transformBy(~year, data=data, x8=scale(x8))$x7
+
+# changing the order of variables (No. 1 region, No. 2 year)
+data<-data[,c(1,9,2:52)] 
+
+# contiguity spatial weights matrix
+cont.nb<-poly2nb(as(pov, "SpatialPolygons"))
+cont.listw<-nb2listw(cont.nb, style="W")
+
+# matrix W according to the inverse criterion 
+crds<-coordinates(pov)
+pov.knn<-knearneigh(crds, k=379) # knn=380-1, there are 380 counties
+pov.nb<-knn2nb(pov.knn)
+dist<-nbdists(pov.nb, crds)  
+dist1<-lapply(dist, function(x) 1/x)  # slat class object
+dist.listw<-nb2listw(pov.nb, glist=dist1)  # listw class object
+
+library(splm) 
+# model with permanent effects (FE), this is the SAC model
+# there are lambda coefficients (spatial lag y)
+# rho coefficients (spatial lag of error) occur
+# there is a Baltagi error
+
+# equations for the model
+# equation on nominal variables and the Poland index=100 variables
+eq1<-y~x1+x2+x3+x4+x5+x6+x7+x8
+
+model.spml<-spml(eq1, data=data, listw=cont.listw, model="within", spatial.error="b", lag=TRUE, effect="individual", rel.tol=2e-40)
+options(scipen=999, digits=2)
+summary(model.spml) 
+eff<-effects(model.spml) # fixed effects
+eff
+
+attributes(eff) # attributes of specific effects object
+plot(density(eff$SETable[,1])) # specific effect density distribution
+
+library(GISTools)
+choropleth(pov, eff$SETable[,1], main="Fixed effects") # fixed effects mapped
+shades<-auto.shading(eff$SETable[,1])
+choro.legend(14, 50.25, shades, cex=0.65, bty="n")
+
+# equation for scaled variables
+eq1.sc<-y.sc~ x1.sc+ x2.sc+ x3.sc+ x4.sc+ x5.sc+ x6.sc+ x7.sc+ x8.sc
+
+model.spml<-spml(eq1.sc, data=data, listw=cont.listw, model="within", spatial.error="b", lag=TRUE, effect="individual", rel.tol=2e-40)
+options(scipen=999, digits=2)
+summary(model.spml) 
+
+# BSJK test - version C1 (conditional) 
+bsjktest(eq1, data=data, listw=cont.listw, test="C.1")
+
+# test BSJK – wersja J (join, łączna)
+bsjktest(eq1, data=data, listw=cont.listw, test="J")
+
+bsktest(eq1, data=data, listw=cont.listw, test="LMH", standardize=TRUE)
+bsktest(eq1, data=data, listw=cont.listw, test="LM1", standardize=TRUE)
+bsktest(eq1, data=data, listw=cont.listw, test="LM2", standardize=TRUE)
+sphtest(eq1, data=data, listw=cont.listw, spatial.model="error", method="GM")
+
+# impacts with simulation
+W.c<-as(as_dgRMatrix_listw(cont.listw), "CsparseMatrix")
+trMat<-trW(W.c, type="mult")
+imp<-impacts(model.spml, tr=trMat, R=20000)
+summary(imp)

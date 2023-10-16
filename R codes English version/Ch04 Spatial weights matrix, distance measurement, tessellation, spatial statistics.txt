@@ -1,0 +1,754 @@
+##############################################
+#Applied Spatial Statistics and Econometrics: Data Analysis in R (Routledge, 2020) 
+#Przestrzenne metody ilościowe w R: statystyka, ekonometria, uczenie maszynowe, analiza danych (CeDeWu, 2020)
+#Editor: Katarzyna Kopczewska 
+#Authors: Katarzyna Kopczewska, Maria Kubara, Piotr Ćwiakowski, Mateusz Kopyt, Piotr Wójcik, Alessandro Festi, Kateryna Zabarina
+#This book is a part of project supported by the Polish National Science Center (NCN) on „Spatial econometric models with fixed and changing neighborhood structure. Application for real estate valuation and business location” (OPUS 12, contract no. UMO-2016/23/B/ HS4/02363).
+#All sample data used in the book and the codes presented in the content of the book were placed on https://github.com/kkopczewska/spatial_book 
+##############################################
+
+#Chapter 4
+#Spatial weights matrix, distance measurement, tessellation, spatial statistics
+#Katarzyna Kopczewska, orcid.org/0000-0003-1065-1790
+#Maria Kubara, orcid.org/0000-0002-8768-8391
+
+#4.1. Introduction to spatial data analysis
+#4.2 Spatial weights matrix
+#4.2.1 General framework for creating spatial weights matrices
+#4.2.2 Selection of a neighbourhood matrix
+#4.2.3 Neighbourhood matrices according to the contiguity criterion
+
+# loading packages
+library(rgdal) 
+library(spdep)
+
+# poviat map
+pov<-readOGR(".", "powiaty") # 380 units 
+pov<-spTransform(pov, CRS("+proj=longlat +datum=NAD83"))
+
+# matrix of weights according to the contiguity criterion
+cont.sp<-as(pov, "SpatialPolygons") # conversion of polygons to class sp
+cont.nb<-poly2nb(cont.sp, queen=T) # conversion of sp to class nb
+
+# creation of weight matrix standardised by lines up to 1 (option W)
+cont.listw<-nb2listw(cont.nb, style="W") 
+cont.listw # displays a summary of the weight matrix
+
+# poviats’ coordinates of measures
+crds.pov<-coordinates(pov)
+colnames(crds.pov)<-c("cx", "cy")
+
+plot(pov) # contour map Fig.4.2a
+plot(cont.nb, crds.pov, add=TRUE) # neighbourly layer
+
+# conversion to matrix class
+cont.mat<-nb2mat(cont.nb)
+cont.mat[1:5, 1:5]
+
+voi<-readOGR(".", "wojewodztwa") # 16 units 
+voi<-spTransform(voi, CRS("+proj=longlat +datum=NAD83"))
+names_voi<-as.character(voi$jpt_nazwa_) # region names vector
+names_voi
+cont.voi.nb<-poly2nb(as(voi, "SpatialPolygons"), row.names=names_voi)
+cont.voi.mat<-nb2mat(cont.voi.nb) # conversion to matrix class
+cont.voi.mat[1:5, 1:5]
+
+names_voi[cont.voi.nb[[which(names_voi=="lubuskie")]]]
+
+#4.2.4 Matrix of k nearest neighbours (knn)
+
+crds.voi<-coordinates(voi) # centroids of NTS 2 voivodeships
+head(crds.voi)
+
+# matrix k=5 nearest neighbours for area data
+voi.knn<-knearneigh(crds.voi, k=5) # a knn object is created
+voi.knn.nb<- knn2nb(voi.knn) 
+
+#Fig.4.2b – connections of k nearest neighbours
+plot(voi, main="K nearest neighbours, k=5")	# regional outline
+plot(voi.knn.nb, crds.voi, add=TRUE) # relationship layer
+
+# checking the symmetry of the matrix
+print(is.symmetric.nb(voi.knn.nb))
+#[1] FALSE
+voi.knn.sym.nb<-make.sym.nb(voi.knn.nb)
+print(is.symmetric.nb(voi.knn.sym.nb))
+#[1] TRUE
+
+# creating a listw class object
+voi.knn.sym.listw<-nb2listw(voi.knn.sym.nb)
+
+library(dplyr)
+firms<-read.csv("geoloc_data_firms.csv", header=TRUE, dec=",", sep=";")
+firms.sub<-sample_n(as_tibble(firms), size=100, replace=FALSE)
+names(firms.sub)
+class(firms.sub)
+
+# matrix k = 5 nearest neighbours for point data
+firms.knn<-knearneigh(as.matrix(firms.sub[,12:13]), k=5) # knn class object
+firms.knn.nb<- knn2nb(firms.knn) 
+
+# figure of k of nearest neighbours
+plot(voi[voi$jpt_nazwa_=="lubelskie",]) # drawing a map slice
+plot(firms.knn.nb, as.matrix(firms.sub[,12:13]), add=TRUE) # relationship layer
+
+print(is.symmetric.nb(firms.knn.nb))
+#[1] FALSE
+firms.knn.sym.nb<-make.sym.nb(firms.knn.nb)
+print(is.symmetric.nb(firms.knn.sym.nb))
+#[1] TRUE
+
+# creating a listw class object  
+firms.knn.sym.listw<-nb2listw(firms.knn.sym.nb)
+summary(firms.knn.sym.listw)
+
+
+#4.2.5	Matrix based on distance criterion (neighbours in a radius of d km)
+
+# Fig.4.3 - a matrix of neighbours within a radius of d km
+conti.d.30<-dnearneigh(crds.pov, 0, 30, longlat=TRUE)
+plot(pov) # background map
+plot(conti.d.30, crds.pov, add=TRUE) # neighbourly relations
+
+# convert nb to matrix
+conti.d.30.m<-nb2mat(conti.d.30, zero.policy=TRUE)
+a<-colMeans(t(conti.d.30.m)) # averages in rows
+pov$a<-a # appending a value vector to shapefile
+spplot(pov, "a") # Fig.4.3b
+
+conti.d.30.listw<-nb2listw(conti.d.30)
+#Error in command 'nb2listw(conti.d.30) #Empty neighbour sets found
+
+# matrix of neighbours within a radius of d km, so that each region has a neighbour
+kkk<-knn2nb(knearneigh(crds.pov))
+all<-max(unlist(nbdists(kkk, crds.pov)))
+all.nb<-dnearneigh(crds.pov, 0, all)
+summary(all.nb, crds.pov)
+plot(pov, border="grey") # neighbours by distance
+plot(all.nb, crds.pov, add=TRUE)
+
+#4.2.6 Inverse distance matrix
+
+# inverse matrix
+poviats.knn<-knearneigh(crds.pov, k=379) 
+poviats.nb<-knn2nb(poviats.knn)
+dist<-nbdists(poviats.nb, crds.pov) 
+dist1<-lapply(dist, function(x) 1/x) # list class object
+poviats.dist.listw<-nb2listw(poviats.nb, glist=dist1)
+summary(poviats.dist.listw)	
+
+# power matrix
+dist2<-lapply(dist, function(x) x**(-2)) 
+poviats.dist.listw2<-nb2listw(poviats.nb, glist=dist2)
+
+# exponential matrix
+dist3<-lapply(dist, function(x) exp(-1.5*x)) 
+poviats.dist.listw3<-nb2listw(poviats.nb, glist=dist3)
+
+
+#4.2.7	Summarizing and editing of spatial weights matrix 
+
+summary(conti.d.30) # summary of the nb class neighbourhood matrix
+all.listw<-nb2listw(all.nb) 
+summary(unlist(all.listw$weights))
+all.mat<-nb2mat(all.nb)
+summary(all.mat)
+table(card(all.nb))
+
+voi.knn.mat<-nb2mat(voi.knn.nb)
+print(voi.knn.mat)
+cont.listw$weights
+
+# launching the editing interface
+edit.nb(voi.knn.nb, crds.voi, polys=voi)
+
+cont.voi.nb
+logic<-c(F,F,F,T,F,F,F,F,F,F,F,F,F,F,F,F)
+name<-c("mazowieckie")
+id<-c(4)
+
+change1<-droplinks(cont.voi.nb, logic)
+change2<-droplinks(cont.voi.nb, name)
+change3<-droplinks(cont.voi.nb, id)	
+change1 	# others give identical results
+
+subset<-c(F,T,F,T,F,F,F,F,F,F,T,F,F,F,F,F)
+subset.voi<-subset.nb(cont.voi.nb, subset)
+subset.voi
+
+cont.voi.nb.self<-include.self(cont.voi.nb)
+cont.voi.nb.self
+
+par(mfrow=c(1,3)) # 1 x 3 split window
+par(mar=c(5.1, 2, 4.1, 1))
+
+plot(voi, main="complement.nb()")
+plot(complement.nb(change1), crds.voi, add=T)
+
+plot(voi, main="intersect.nb()")
+plot(intersect.nb(cont.voi.nb, change1), crds.voi, add=T)
+
+plot(voi, main="setdiff.nb()")
+plot(setdiff.nb(cont.voi.nb, change1), crds.voi, add=T)
+
+par(mfrow=c(1,1)) # 1 x 1 split window
+
+
+#4.2.8	Spatial lags and higher order neighbourhood
+
+head(levels(pov$jpt_nazwa_))
+pov$SHOCK<-rep(0,380)
+pov$SHOCK[pov$jpt_nazwa_=="powiat Łódź"]<-1 	#Łódź
+pov$SHOCK[pov$jpt_nazwa_=="powiat Warszawa"]<-1 	#Warszawa
+pov$SHOCK[pov$jpt_nazwa_=="powiat Gdańsk"]<-1 	#Gdańsk
+pov$SHOCK[pov$jpt_nazwa_=="powiat Poznań"]<-1 	#Poznań
+spplot(pov, "SHOCK") 				#shock centres Fig.4.5a
+
+# spatial lag of the SHOCK variable - first row
+pov$lagg<-lag.listw(cont.listw, pov$SHOCK)
+summary(pov$lagg)
+spplot(pov, "lagg") 			# first order lag
+
+# spatial lag of the SHOCK variable - second row
+poviats.2.list<-nblag(cont.nb, 2)
+poviats.2.nb<-nblag_cumul(poviats.2.list)
+pov$lagg<-lag.listw(nb2listw(poviats.2.nb), pov$SHOCK) 
+spplot(pov, "lagg") 	# second order lag
+
+# spatial lag of the SHOCK variable - third row
+poviats.3.list<-nblag(cont.nb, 3)
+poviats.3.nb<-nblag_cumul(poviats.3.list)
+pov$lagg<- lag.listw(nb2listw(poviats.3.nb), pov$SHOCK)
+spplot(pov, "lagg") 	# Fig.4.5b - third order lag
+
+#4.2.9  Creating weights matrix based on group membership
+
+data<-read.csv("data_nts4_2019.csv", header=TRUE, dec=",", sep=";")
+sub<-data[data$year==2017,]
+names(sub)
+table(sub$region_name)
+matt<-matrix(0, nrow=380, ncol=380) # creating an empty matrix 
+
+names<-levels(sub$region_name)
+names
+
+for(i in 1:16){
+c1<-which(sub$region_name==names[i])
+matt[c1, c1]<-1}
+diag(matt)<-0
+
+vec<-rowSums(matt) # sums in rows - de facto number of neighbours
+matt.W<-matt/vec # matrix standardisation
+matt.listw<-mat2listw(matt.W) # conversion to listw
+matt.listw
+
+# visualisation of values in the weight matrix
+a<-apply(matt.W, 1, max) 	# max in rows
+library(GISTools)		# Fig.4.6a
+choropleth(pov, a)		# value of weights in the poviat
+plot(voi, add=TRUE, lwd=2) 	# voivodship outline
+
+sub<-data[data$year==2017, ]
+names(sub)
+sub.k<-sub[,c(21,32,11)]
+
+library(factoextra)
+library(RColorBrewer)
+fviz_nbclust(sub.k, kmeans, method="silhouette") # Fig.4.7a
+clus<-eclust(sub.k, "kmeans", hc_metric="euclidean",k=2, graph=FALSE)
+
+brks<-c(0,1,2,3)
+cols<-brewer.pal(3, "Purples")
+plot(pov, col=cols[findInterval(clus$cluster, brks)]) # Fig.4.7b
+
+matt<-matrix(0, nrow=380, ncol=380) # creating an empty matrix
+for(i in 1:2){
+c1<-which(clus$cluster==i)
+matt[c1, c1]<-1}
+diag(matt)<-0
+
+vec<-rowSums(matt) # sums in rows - de facto number of neighbours
+matt.W<-matt/vec # matrix standardisation
+matt.listw<-mat2listw(matt.W) # conversion to listw
+matt.listw
+
+# visualisation of values in the weight matrix
+a<-apply(matt.W, 1, max) 	# max in rows
+library(GISTools)
+choropleth(pov, a)		# value of weights in the poviat
+plot(voi, add=TRUE, lwd=2) 	# voivodeship outline
+
+#4.3 Distance measurement and spatial aggregation
+
+firms<-read.csv("geoloc_data_firms.csv", header=TRUE, dec=",", sep=";")
+crds.Lublin<-c(22.4236877, 51.2180254) # coordinates of Lublin
+
+# xy coordinates of firms - SpatialPoints class object
+loc<-SpatialPoints(firms[,12:13], proj4string=CRS("+proj=longlat +datum=NAD83"))
+head(loc)
+
+# vector distance of all points from the centre - Lublin
+dist<-spDistsN1(loc, crds.Lublin, longlat = TRUE)
+
+# colour palette
+library(wesanderson)
+cols<-wes_palette(n=8, name="Darjeeling1", type="continuous")
+cols	# Figure of palette colours 
+
+# a point map of the distance between the point and the centre
+summary(dist)
+
+brks<-c(0, 2, 25, 50, 75, 100, 125, 150)
+lubelskie.voi<- voi[voi$jpt_nazwa_=="lubelskie",] # creating a map subset
+lubelskie.pov<-pov[50:73,] # creating a map subset
+plot(lubelskie.voi) # Fig.4.6b
+plot(lubelskie.pov, add=TRUE)
+
+points(firms[,12:13], col=cols[findInterval(odle, brks)], 
+pch=21, bg=cols[findInterval(dist, brks)], cex=0.2)
+
+legend("bottomleft", legend=brks, pt.bg=cols, bty="n", pch=21)
+title(main="Distance from the centre")
+savePlot(filename="dists", type="jpg")
+# checking the affiliation of points to areas
+lubelskie.pov<-pov[50:73,] # creating a map subset
+loc<-SpatialPoints(firms[,12:13], proj4string=CRS("+proj=longlat +datum=NAD83"))
+
+# rewriting points to areas (poviats)
+firms.over<-over(loc, lubelskie.pov) # from sp:: package
+dim(firms.over)
+
+names(firms.over) # the same result will be obtained from names (pov)
+head(firms.over$jpt_nazwa_)
+
+the.same<-zerodist(loc)
+head(the.same)
+
+# draw points on the map, options: random | regular | stratified
+# | nonaligned | hexagonal | clustered | fibonacci
+
+pl<-readOGR(".", "Panstwo") #outline map of Poland without internal divisions
+pl<-spTransform(pl, CRS("+proj=longlat +datum=NAD83"))
+
+newpoints<-spsample(pl, 20000, type="stratified") 
+newpoints.df<-as.data.frame(newpoints)		# class conversion
+newpoints.m<-as.matrix(newpoints.df)		# class conversion
+
+# checking the affiliation of a point to a region and choosing a key variable
+where<-over(newpoints, voi) 	
+newpoints.df$voi<-where$jpt_nazwa_ 	# variable about the region
+
+head(newpoints.df)
+dim(newpoints.df)
+
+regions<-levels(newpoints.df$voi) 	# voivodeship names
+regions
+
+# loading poviat data that has the identifier of region centres
+ unempl<-read.csv("unemp2018.csv", header=TRUE, dec=",", sep=";")
+
+# adding centrod coordinates to the data set
+unempl$crds<-coordinates(pov) # added as a matrix in the data frame	
+
+# selection of relevant column - name voivodeship and geographical coordinates
+capitals.xy<-unempl[unempl$core_city==1, c(6,102)] 
+
+# case correction 
+capitals.xy$voivodeshipo<-tolower(capitals.xy$voivodeshipo) 
+capitals.xy<-capitals.xy[1:16,]
+head(capitals.xy)
+
+# joining data sets by key-variable
+dist<-merge(newpoints.df, capitals.xy, by.x="voi", by.y="voivodeshipo", all.x=TRUE, sort=FALSE)
+names(dist)
+head(dist)
+
+# counting the distance between coordinate pairs
+library(raster)
+for(i in 1:dim(dist)[1]){
+dist$dist[i]<-pointDistance(dist[i,2:3],dist$crds[i,], lonlat=FALSE)}
+head(odle)
+
+# value graph in point
+library(fields)
+quilt.plot(dist[,2:3], dist$dist) # Fig.4.8a
+	 
+library(cluster)
+library(factoextra)
+library(wesanderson) 
+library(GISTools)
+
+# coordinate clustering
+c2<-clara(firms[,12:13], 5, metric="euclidean", sampsize=1000)
+
+# a combination of clustering and membership verification results
+points<-cbind(firms[,12:13], firms.over$jpt_nazwa_, c2$clustering)
+head(points)
+names(points)<-c("xx", "yy", "poviat", "cluster")
+head(points)
+
+# summary of points belonging to poviats according to clusters from CLARA
+# i.e. what poviats are points from the first CLARA cluster
+unique(points$poviat[points$cluster==1]) 
+
+# checking how many points there are within polygons (poviats)
+how.many.pts.in.pov<-poly.counts(loc, lubelskie.pov)# from GISTools:: 
+
+# point density in relation to the surface - Fig.4.8b
+choropleth(lubelskie.pov, how.many.pts.in.pov/poly.areas(lubelskie.pov))
+
+NN<-1500 # number of observations
+samm<-spsample(pov, n=NN, type="random") # spatial sample
+val<-rnorm(NN, mean=100, sd=20) # drawn values
+samm.df<-as.data.frame(samm)
+samm.df$val<-val
+head(samm.df)
+
+brks<-c(40,60,80,100,120,140,160)
+cols<-wes_palette(n=8, name="BottleRocket2", type="continuous")
+plot(pov, border="grey80") 
+points(samm.df[,1:2], pch=".", cex=5, col=cols[findInterval(samm.df[,3], brks)])
+
+# checking the point's affiliation with the area 
+samm.over.pov<-over(samm, pov) # do poviats
+samm.over.voi<-over(samm, voi) # do voivodeship
+samm.df$pov<-samm.over.pov$jpt_nazwa_
+samm.df$voi<-samm.over.voi$jpt_nazwa_
+head(samm.df)
+
+# aggregation of point data
+result<-aggregate(samm.df$val, by=list(samm.df$voi), sum)
+voi.df<-as.data.frame(voi)
+voi.df$id<-1:16
+voi.df<-voi.df[,c(6,30)]
+voi.df.m<-merge(voi.df, result, by.x="jpt_nazwa_", by.y="Group.1")
+
+# aggregate data sorting
+library(doBy)
+result.sort<-orderBy(~id, data=voi.df.m)
+
+# colourful voivodeship map
+library(RColorBrewer)
+library(classInt)
+variable<-result.sort$x
+summary(variable)
+compartments<-8
+colors<-brewer.pal(compartments, "BuPu") # wybór kolorów
+class<-classIntervals(variable, compartments, style="pretty")
+color.table<-findColours(class, colors) 
+plot(voi, col=color.table)
+legend("bottomleft", legend=names(attr(color.table, 
+"table")), fill=attr(color.table, "palette"), cex=0.75, bty="n")
+title(main="Sums according to voivodeship")
+
+# closest neighbours of generated points
+samm.knn<-knearneigh(samm, k=2) # class knn object k=2
+samm.nb<-knn2nb(samm.knn) 
+samm.listw<-nb2listw(samm.nb) # conversion class nb to listw
+samm.lag<-lag.listw(samm.listw, samm.df$val) # spatial lag
+dev.off()
+plot(samm.df$val, samm.lag)
+
+#4.4 Tessellation
+
+library(spatstat)
+library(rgdal)
+library(maptools)
+
+# option A – reading a map with planar projection
+voi<-readOGR(".", "wojewodztwa") # 16 units 
+lub.voi<-voi[voi$jpt_nazwa_=="lubelskie",] # creating a map slice
+lub.owin<-as(lub.voi, "owin") # from rgdal:: 
+
+# option B – conversion of projection from sperical to planar
+#voi<-readOGR(".", "wojewodztwa") # 16 units 
+#voi<-spTransform(voi, CRS("+proj=longlat +datum=NAD83")) #spherical
+voi<-spTransform(voi, CRS("+proj=merc +datum=NAD83")) # planar
+lub.voi<- voi[voi$jpt_nazwa_=="lubelskie",] # creating a map slice
+lub.owin<-as(lub.voi, "owin") # from rgdal::
+
+# extraction of unique points and random sampling
+cord<-as.matrix(cbind(firms$coords.x1, firms$coords.x2))
+cord1<-unique(cord)
+x<-sample(1:length(cord1), 100)
+x<-order(x)
+cord2<-cord1[x,]
+
+cord2.sp<-SpatialPoints(cord2) # points in sp class spherical
+proj4string(cord2.sp)<-CRS("+proj=longlat +datum=NAD83") # spherical
+cord2.sp<-spTransform(cord2.sp, CRS("+proj=merc +datum=NAD83")) #planar
+
+# construction of the spatial object and tessellation
+lub.ppp<-ppp(x=cord2.sp@coords[,1], y=cord2.sp@coords[,2], window=lub.owin)
+lub.tes<-dirichlet(lub.ppp) # Dirichlet tessellation
+plot(lub.tes, main=" Tessellation for n = 100 points ") # Fig.4.9a
+plot(lub.ppp, add=TRUE, pch=".", col="darkblue", cex=2)
+degAxis(1)
+degAxis(2)
+
+tes.poly<-as(lub.tes, "SpatialPolygons") 
+proj4string(tes.poly)<-CRS("+proj=merc +datum=NAD83") # spherical
+tes.poly<-spTransform(tes.poly, CRS("+proj=longlat +datum=NAD83"))
+
+library(tripack)
+lub.vm <- voronoi.mosaic(cord2[,1], cord2[,2])
+plot(lub.vm) # Fig.4.9b
+voi<-readOGR(".", "wojewodztwa") # 16 units 
+voi<-spTransform(voi, CRS("+proj=longlat +datum=NAD83")) #spherical
+library(tripack)
+lub.vm <- voronoi.mosaic(cord2[,1], cord2[,2])
+plot(lub.vm)
+voi<-readOGR(".", "wojewodztwa") # 16 units 
+voi<-spTransform(voi, CRS("+proj=longlat +datum=NAD83")) #spherical
+lub.voi<-voi[voi$jpt_nazwa_=="lubelskie",] # creating a map slice
+plot(lub.voi, add=TRUE, lwd=2, border="red")
+
+lub.vp <- voronoi.polygons(lub.vm)
+head(lub.vp)
+
+#4.5 Spatial statistics
+
+# reading poviat data
+unempl<-read.csv("unemp2018.csv", header=TRUE, dec=",", sep=";")
+names(unempl)
+# map of poviats and spatial weight matrix
+pov<-readOGR(".", "powiaty") # 380 units
+pov<-spTransform(pov, CRS("+proj=longlat +datum=NAD83"))
+
+cont.nb<-poly2nb(as(pov, "SpatialPolygons")) 	# from the spdep:: package
+cont.listw<-nb2listw(cont.nb, style="W")	# from the spdep:: package
+  
+#4.5.1 Global statistics
+#4.5.1.1 Global Moran I statistics
+
+moran(unempl$X2011.06, cont.listw, length(cont.nb), Szero(cont.listw))
+moran.test(unempl$X2011.06, cont.listw)
+m3<-moran.test(unempl$X2011.06, cont.listw, randomisation=FALSE)
+m3
+
+#pvalue for I Morana (normal distribution)
+pval.norm<-1-pnorm(m3$statistic, mean=0, sd=1)
+pval.norm
+
+moran.mc(unempl$X2011.06, cont.listw, 99)
+
+variable<-unempl$X2011.06
+variable.std<-((variable-mean(variable))/sd(variable))
+moran.plot(variable.std, cont.listw, labels=as.character(unempl$poviat), pch=19, quiet=F) # fig.10a
+
+x<-unempl$X2011.06 			# extracting the variable
+zx<-scale(x) 				# variable standardisation
+mean(zx) 					# average control
+sd(zx) 					# standard deviation control
+wzx<-lag.listw(cont.listw, zx) 	# spatial lag of x
+morlm<-lm(wzx~zx) 			# regression   
+slope<-morlm$coefficients[2] 		# directional coefficient
+intercept<-morlm$coefficients[1] 	# constant term
+par(pty="s") 				# square chart window
+plot(zx, wzx, xlab="zx",ylab="spatial lag zx", pch="*") 
+abline(intercept, slope) 		# regression line
+abline(h=0, lty=2) 			# horizontal line at y = 0
+abline(v=0, lty=2) 			# vertical line at x = 0
+
+# map of belonging to the quarters of the Moran scatter chart
+# creating a variable for analysis
+x<-unempl$X2011.06 # creating a variable for analysis
+zx<-scale(x) # variable standardisation
+wzx<-lag.listw(cont.listw, zx) # spatial lag of x
+cond1<-ifelse(zx>=0 & wzx>=0, 1,0) # I quarter
+cond2<-ifelse(zx>=0 & wzx<0, 2,0) # II quarter
+cond3<-ifelse(zx<0 & wzx<0, 3,0) # III quarter
+cond4<-ifelse(zx<0 & wzx>=0, 4,0) # IV quarter
+cond.all<-as.data.frame(cond1+cond2+cond3+cond4) 
+
+# chart - colour map, Fig.10b
+brks<-c(1,2,3,4)
+cols<-c("grey25", "grey60", "grey85", "grey45")
+par(mar=c(5.1,1,4.1,1))
+plot(pov, col=cols[findInterval(cond.all$V1, brks)])
+
+legend("bottomleft", legend=c("I quarter - HH - high surrounded by high ", " II quarter - LH - low surrounded by high ", " III quarter - LL - low surrounded by low ", " IV exercise - HL - high surrounded by low "), fill=cols, bty="n", cex=0.8)
+title(main="Regions belonging to quarters from the Moran scatter plot")
+
+#4.5.1.2 Global Geary C statistics
+
+geary(unempl$X2011.06, cont.listw, length(cont.nb), length(cont.nb)-1, Szero(cont.listw))
+geary.test(spNamedVec("X2011.06", unempl), cont.listw)
+geary.mc(unempl$X2011.06, cont.listw, 99)
+
+#4.5.1.3 Join-count statistics
+
+summary(unempl$X2011.06)
+head(unempl$X2011.06)
+
+variable.f<-factor(cut(unempl$X2011.06, breaks=c(0,10, 20, 40), labels=c("low", "medium", "high")))
+head(variable.f)
+
+# graphic parameters
+brks1<-c(0, 10, 20, 40) 
+cols<-c("green", "blue", "red")
+
+# scatter plot of subsequent values of the tested variable - Fig.4.11a
+plot(unempl$X2011.06, bg=cols[findInterval(unempl$X2011.06, brks1)], pch=21)
+abline(h=c(10,20,40), lty=3)
+
+# spatial distribution of values into three distinguished groups - Fig.4.11b
+plot(pov, col=cols[findInterval(unempl$X2011.06, brks1)])
+plot(voi, add=TRUE, lwd=2)
+title(main="Unemployment in June 2011")
+legend("bottomleft", legend=c("low", "medium", "high"), leglabs(brks1), fill=cols, bty="n")
+
+joincount.test(variable.f, cont.listw)
+joincount.mc(variable.f, cont.listw, 99)
+joincount.multi(variable.f, cont.listw)
+
+#4.5.2. Local spatial autocorrelation statistics
+#4.5.2.2 Local Moran I statistics (LISA)
+
+locM<-localmoran(spNamedVec("X2011.06", unempl), cont.listw)
+oid1<-order(unempl$ID_MAP)
+printCoefmat(data.frame(locM[oid1,], row.names=unempl$poviat[oid1]), check.names=FALSE)
+
+# duplicate names vector
+dupli<-c("Powiat tomaszowski", "Powiat krośnieński", "Powiat brzeski", "Powiat ostrowski", "Powiat opolski", "Powiat grodziski", "Powiat nowodworski", "Powiat bielski", "Powiat średzki", "Powiat świdnicki")
+
+# change data type from factor to character
+unempl$poviat<-as.character(unempl$poviat)
+
+# loop that adds an apostrophe to the second instance of names
+for(i in 1: length(dupli)){
+a<-which(unempl$poviat==dupli[i])[2]
+unempl$poviat[a]
+unempl$poviat[a]<-paste0(as.character(unempl$poviat[a]), "'")}
+
+# restoring the original class variable
+unempl$poviat<-as.factor(unempl$poviat)
+
+# code generating a list of local Moran statistics with region names assigned
+locM<-localmoran(spNamedVec("X2011.06", unempl), cont.listw)
+oid1<-order(unempl$ID_MAP)
+locMorMat<-printCoefmat(data.frame(locM[oid1,], row.names=unempl$poviat[oid1]), check.names=FALSE)
+
+# printing of the first six significant values <0.05 
+head(locMorMat[locMorMat$Pr.z...0.<0.05,])
+
+# printing significant values> 0.95
+locMorMat[locMorMat$Pr.z...0.>0.95,]
+
+# map of the significance of Moran's local statistics
+names(locMorMat)[5]<-"Prob"
+brks<-c(min(locMorMat[,5]), 0.05000, 0.95000, max(locMorMat[,5]))
+cols<-c("grey30", "grey90", "grey60")
+
+plot(pov, col=cols[findInterval(locMorMat[,5], brks)])
+legend("bottomleft", legend=c("surrounded by relatively high values, locM>0", "insignificant", "surrounded by relatively low values, locM<0"), fill=cols, bty="n", cex=0.75)
+title(main=" Local Moran statistics ", cex=0.7)
+plot(voi, add=TRUE, lwd=2)
+
+#4.5.2.3 Local Geary C statistics
+#4.5.2.4 Local Getis-Ord Gi statistics
+
+# local Gi statistics
+locG<-localG(unempl$X2011.06, cont.listw)
+# locGstar<-localG(unempl$X2011.06, nb2listw(include.self(cont.nb)))
+summary(locG)
+
+# significance t-student test for n=100 
+sig<-ifelse(locG<=-3.289 | locG>=3.289, "*", " ")
+which(sig=="*")
+unempl[which(sig=="*"), c(3,6,10,18)]
+
+# graph of significant locG statistics
+brks<-c(-10,-3.289, 3.289, 10)
+cols<-c("grey40", "grey85", "grey55")
+cols<-c("red", "grey85", "green")
+plot(pov, col=cols[findInterval(locG, brks)])
+legend("bottomleft", legend=c("G significant - surrounded by relatively low values", "G insignificant", "G significant - surrounded by relatively high values") , fill=cols, bty="n", cex=0.75)
+title(main="Significant G statistics")
+
+#4.5.2.4. Local spatial heteroscedasticity (LOSH)
+	
+# local Gi statistics
+locG<-localG(unempl$X2011.06, cont.listw)
+a<-summary(locG)
+
+# graph of Gi statistics, Fig.13a
+brks<-c(a[1], a[2], a[3], a[5], a[6])
+colfunc<-colorRampPalette(c("royalblue", "springgreen", "yellow", "red"))
+coli<-colfunc(5)
+plot(pov, col=coli[findInterval(locG, brks)], main=" Gi statistics")
+legend("bottomleft", legend=c("Very low", "Low", "Medium", "High", "Very high") , fill=coli, bty="n")
+
+#local Hi LOSH
+locH<-LOSH(unempl$X2011.06, cont.listw, a=2, var_hi=TRUE, zero.policy=TRUE, na.action=na.exclude)
+summary(locH)
+
+b<-summary(locH[,"Hi"])
+b
+
+# LOSH statistics mapped, Fig.4.13b
+brks<-c(b[1], b[2], b[3], b[5], b[6])
+plot(pov, col=coli[findInterval(locH[,"Hi"], brks)])
+legend("bottomleft", legend=c("Very low", "Low", "Medium", "High", "Very high") , fill=coli , bty="n")
+title(main="Hi statistics ")
+
+#4.6 Spatial cross-correlations for two variables
+
+library(spatialEco) # calculations, crossCorrelation()
+library(GISTools) # graphics, choropleth()
+
+cont.mat<-nb2mat(cont.nb) # W matrix converted to class matrix
+
+x1<-unempl[,101]
+x2<-unempl[,100] # date month to month
+
+# version with matrix W
+ii<-crossCorrelation(x1, x2, w=cont.mat, type=c("LSCI", "GSCI"), k=99, scale.xy=FALSE, scale.partial=TRUE, scale.matrix=TRUE, alpha=0.05)
+ii
+
+# version with coordinates and distance
+iii<-crossCorrelation(x1, x2, coords=crds.pov, type = c("LSCI", "GSCI"), k=99, dist.function="inv.pover", scale.xy=FALSE, scale.partial=TRUE, scale.matrix=FALSE, alpha=0.05)
+iii
+
+cor(x1,x2) # Pearson correlation
+head(iii$SCI[,"lsci.xy"]) # accessing the result
+
+# mapping of result ii
+choropleth(pov, ii$SCI[,"lsci.xy"])
+shades<-auto.shading(ii$SCI[,"lsci.xy"])
+choro.legend(14, 50.25, shades, cex=0.65, bty="n")
+title(main="Contriguity matrix, date month to month")
+
+# mapping of result iii
+choropleth(pov, iii$SCI[,"lsci.xy"])
+shades<-auto.shading(iii$SCI[,"lsci.xy"])
+choro.legend(14, 50.25, shades, cex=0.65, bty="n")
+title(main="Inverse square distance matrix, date month to month")
+
+#4.7 Correlogram
+
+# correlogram based on the classic correlation coefficient
+corr.classic<-sp.correlogram(cont.nb, unempl$X2018.05, order=6, method="corr")
+print(corr.classic)
+
+stat<-(dim(unempl)[1]-2)^0.5*corr.classic$res/(1-corr.classic$res^2)^0.5
+pvalue<-1-pnorm(abs(stat), mean=0, sd=1)
+corr.classic.sig<-cbind(corr.classic$res, stat, pvalue)
+options(scipen=999, digits=2)
+corr.classic.sig
+corr.moran<-sp.correlogram(cont.nb, unempl$X2018.05, order=6, method="I")
+print(corr.moran)
+
+plot(corr.classic)
+plot(corr.moran) # Fig.4.14a
+
+library(spatialEco)
+unempl$crds<-crds.pov # adding xy coordinates to the data set
+unempl.lim<-unempl[,c(102,101)] # data.frame coordinates + 1 one variable
+class(unempl.lim)		 # data.frame class
+coordinates(unempl.lim)<-unempl.lim[,1] # definition of coordinates
+class(unempl.lim)		 # already the SpatialPointsDataFrame class
+
+a<-correlogram(x=unempl.lim, v=unempl.lim@data[,'X2018.05'], dist=35, ns=99, latlong=TRUE, dmatrix=TRUE)
+plot(a)
+attributes(a)

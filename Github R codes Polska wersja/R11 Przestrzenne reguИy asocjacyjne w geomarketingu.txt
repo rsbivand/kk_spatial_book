@@ -1,0 +1,131 @@
+##############################################
+#Przestrzenne metody ilościowe w R: statystyka, ekonometria, uczenie maszynowe, analiza danych
+#Redakcja Katarzyna Kopczewska
+#Autorzy: Katarzyna Kopczewska, Maria Kubara, Piotr Ćwiakowski, Mateusz Kopyt, Piotr Wójcik, Alessandro Festi, Kateryna Zabarina
+#Warszawa, 2020, CeDeWu
+#Wydanie książki zostało sfinansowane z grantu Narodowego Centrum Nauki (NCN) pt. Modele ekonometryczne przestrzenne ze stałą i zmienną strukturą sąsiedztwa. Zastosowanie do wyceny nieruchomości i lokalizacji firm (OPUS 12, umowa nr UMO-2016/23/B/HS4/02363).
+#Książka została wydana w angielskiej wersji językowej jako: Applied Spatial Statistics and Econometrics: Data Analysis in R (redakcja Katarzyna Kopczewska, autorzy: Katarzyna Kopczewska, Maria Kubara, Piotr Ćwiakowski, Mateusz Kopyt, Piotr Wójcik, Alessandro Festi, Kateryna Zabarina), Routledge, 2020
+##############################################
+
+#Rozdział 11
+#Przestrzenne reguły asocjacyjne w geomarketingu
+#Alessandro Festi
+
+#11.1 Wprowadzenie do analizy koszykowej i geomarketingu
+#11.2 Dane potrzebne w analizie koszyków rynku przestrzennego
+
+x<-runif(50, -1,1) # dane wejściowe z rozkładu jednostajnego [-1,1]
+y<-3*x + 5
+
+plot(x, y, xlim=range(x), ylim=range(y), xlab="x", ylab="y",pch=16)
+lines(x[order(x)], y[order(x)], xlim=range(x), ylim=range(y), pch=16)
+
+y2 <- 12*x^4 - 10*x^2 + x - 4 
+plot(x, y2, xlim=range(x), ylim=range(y2), xlab="x", ylab="y2", pch=16)
+lines(x[order(x)], y2[order(x)], xlim=range(x), ylim=range(y2), pch=16)
+
+y3 <- 2*x^7 + 7
+plot(x, y3, xlim=range(x), ylim=range(y3), xlab="x", ylab="y3", pch=16)
+lines(x[order(x)], y3[order(x)], xlim=range(x), ylim=range(y3), pch=16)
+
+#11.3 Symulacja danych
+
+# Zestaw 20 losowych punktów reprezentujących centralną lokalizację
+punkty<-as.data.frame(cbind(rnorm(20)/250+11.342220, rnorm(20)/250+44.493674))
+r_colors<-rgb(t(col2rgb(colors()) / 255))
+names(r_colors)<-colors()
+UI<-fluidPage(leafletOutput("mymap"), p(), actionButton("recalc", "New points"))
+
+server<-function(input, output, session) { 
+ points<-eventReactive(input$recalc, {
+ points 
+ }, ignoreNULL = FALSE)       
+ output$mymap <- renderLeaflet({
+  leaflet() %>%
+ addProviderTiles(providers$Stamen.TonerLite,
+    options=providerTileOptions(noWrap = TRUE)
+ ) %>%
+ addMarkers(data=points())
+ })
+}
+shinyApp(UI, server)
+
+paths <- c()
+for (j in 1:nrow(points)){ # Dla wszystkich 20 wcześniej symulowanych osób
+for (i in 1:10) { # generowanie 10 ścieżek składających się z 10 pozycji każda 
+mu<-rep(0,10)  # określenie mu i Sigma dla MVN 
+Sigma<-matrix(0.7, nrow=10, ncol=10) + diag(10)*.3 # 0.7 to korelacja   
+rawvars<-mvrnorm(n=10, mu=mu, Sigma=Sigma) 
+geo_points<-as.data.frame(cbind(rawvars[,i]/250 + as.double(points[j]), rawvars[,i]/250 + as.double(points[j]+nrow(points)])))        
+gg <- cbind(geo_points, i, j)
+paths <- rbind(paths, gg)}} 
+
+#11.4 Technika analizy koszyków rynkowych stosowana do danych geolokalizacyjnych
+
+# Geokodowanie poprzez API Mapbox - kod w Python
+import pandas as pd 
+
+# Wklejanie zmiennych „street”, „address” i miasta (Bologna) w celu utworzenia 
+# nowej zmiennej, z której można wywnioskować szerokość i długość geograficzną
+# dla każdej czynności reklamowej
+
+data=pd.read_csv("C:\\Users\\Alessandro\\Desktop\\mydata.csv")
+data=pd.DataFrame(dane)
+newdata=data['esercizio_via']+' '+data['esercizio_civico']+' '+'Bologna'
+
+for i in newdata: 
+  response=geocoder.forward(i)
+  respcont=response.content
+  d=json.loads(respcont)
+  coordinates = d["features"][0]['geometry']['coordinates']
+
+dataset<-c()
+for(j in 1:nrow(geo_points)) { # dla wszystkich indywidualnych lokalizacji
+ x <- spDistsN1(places,paths[j,], longlat = FALSE)# odległość euklidesowa
+ x <- as.data.frame(x)
+ qq <- which(x == min(x), arr.ind = TRUE # szukanie najbliższego sąsiada
+ qq <- as.data.frame(qq) 
+ nearest <- sort(x[x>0],decreasing=F)[1]) 
+ dataset$distance[j] <- nearest	 
+ 	if(nearest<0.0003) { # wybrany, jeśli jest mniejszy niż odległość
+ 	  dataset$lon[j]<-places[qq[1,1],1] # przypisanie współrzędnych 
+ 	  dataset$lat[j] <- places[qq[1,1],2] 
+ }
+}
+
+head(dataset, 10) # pełny zestaw danych z NA
+dataset=na.omit(dataset)
+head(dataset, 10) # ograniczony zestaw danych, bez NA
+
+final<-merge(x=dataset, y=places, by.x=c("long", "lat"), by.y=c("long", "lat"))
+head(final, 10)
+
+#11.5 Przestrzenne reguły asocjacyjne
+
+transactionData <- ddply(final, c("itemset_customer"),
+   function(final)paste(final$ID, collapse=",")) 
+
+tr <- read.transactions(transactionData, fornmat=’basket’, sep=’,’)
+
+library(RcolorBrewer)
+iitemFrequencyPlot(tr, topN=20, type=’absolute’, col = brewer.pal(8,’Pastel2’), main=’Absolute Item Frequency Plot’)
+
+association.rules<-apriori(tr, parameter=list(supp=0.03, conf=0.5, maxlen=10)) 
+summary(association.rules)
+
+rules <- head(association.rules, n = 5, by = "support")
+inspect(rules)
+
+plot(association.rules[1:100], method="graph")
+plot(association.rules[1:20], method="graph")
+
+#11.6	 Aplikacje do geomarketingu
+#11.6.1	Znalezienie najlepszej lokalizacji dla firmy
+#11.6.2	Targetowanie
+#11.6.3	Badanie konkurencji
+#11.7 Wnioski i dalsze badania
+
+
+
+
+

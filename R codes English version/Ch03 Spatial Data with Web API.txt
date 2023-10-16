@@ -1,0 +1,707 @@
+##############################################
+#Applied Spatial Statistics and Econometrics: Data Analysis in R (Routledge, 2020) 
+#Przestrzenne metody ilościowe w R: statystyka, ekonometria, uczenie maszynowe, analiza danych (CeDeWu, 2020)
+#Editor: Katarzyna Kopczewska 
+#Authors: Katarzyna Kopczewska, Maria Kubara, Piotr Ćwiakowski, Mateusz Kopyt, Piotr Wójcik, Alessandro Festi, Kateryna Zabarina
+#This book is a part of project supported by the Polish National Science Center (NCN) on „Spatial econometric models with fixed and changing neighborhood structure. Application for real estate valuation and business location” (OPUS 12, contract no. UMO-2016/23/B/ HS4/02363).
+#All sample data used in the book and the codes presented in the content of the book were placed on https://github.com/kkopczewska/spatial_book 
+##############################################
+
+#Chapter 3
+#Spatial Data with Web API
+#Mateusz Kopyt, orcid.org/0000-0001-5285-7792
+#Katarzyna Kopczewska, orcid.org/0000-0003-1065-1790
+
+#3.1 What is API ?
+#3.2 Creating contextual maps with use of API
+
+library(RgoogleMaps)
+library(PBSmapping)
+library(maptools)
+library(rgdal)
+
+pl<-readOGR("./Data", "Panstwo",  use_iconv=TRUE, encoding='Windows-1250') 
+voi<-readOGR("./Data", "wojewodztwa",  use_iconv=TRUE, encoding='Windows-1250') 
+pov<-readOGR("./Data", "powiaty", use_iconv=TRUE, encoding='Windows-1250') 
+
+#alternative import of data
+#pl<-readOGR(".", "Panstwo") 
+#voi<-readOGR(".", "wojewodztwa") # 16 units 
+#pov<-readOGR(".", "powiaty") # 380 units
+
+mazowieckie<-voi[voi@data$jpt_nazwa_=='mazowieckie',] 
+
+class(mazowieckie)
+proj4string(mazowieckie) 
+
+latlong<-"+init=epsg:4326"
+google<-"+init=epsg:3857"
+polish_borders<-"+init=epsg:2180"
+
+CRS(latlong)
+CRS(google)
+CRS(polish_borders)
+
+# assigning an individual Google API access key to the variable, 
+APIKEY<-"AbCdEfGhIjKlMnOpRsTuWxYz" # false key
+
+# boundaries of Mazovian region – method I
+mazowieckie.lonlat<-spTransform(mazowieckie, CRS(latlong)) 
+maz.polyset<-SpatialPolygons2PolySet(mazowieckie.lonlat) # using maptools::
+maz_box<-qbbox(lat=maz.polyset[,"Y"], lon=maz.polyset[,"X"]) #RgoogleMaps::
+
+# boundaries of the download area - method II
+maz_box2<-bbox(mazowieckie.lonlat) 
+
+maz_box
+$latR
+$lonR
+maz_box2
+
+maz.map<-GetMap.bbox(maz_box$lonR, maz_box$latR, destfile="MAZ_Google.png", API_console_key=APIKEY, SCALE=2)
+class (maz.map)
+
+# drawing a background and adding a contour map, Fig.3.1a
+par(mar=c(0,0,0,0)) # ereasing the margins
+PlotPolysOnStaticMap(Maz.map, maz.polyset, lwd=2, col=rgb(0.25, 0.25, 0.25, 0.025), border="red", add=FALSE)
+ 
+library(RgoogleMaps)
+library(PBSmapping)
+library(maptools)
+library(rgdal)
+
+# contour and bounding box
+woj.lonlat<-spTransform(woj, CRS(latlong))
+woj.polyset<-SpatialPolygons2PolySet(woj.lonlat) # using maptools::
+bb<-qbbox(lat=woj.polyset[,"Y"], lon=woj.polyset[,"X"]) # RgoogleMaps::
+
+# with RgoogleMaps - generates a map in the "staticMap" class
+MyMap<-GetMap.bbox(bb$lonR, bb$latR, destfile="DC.jpg", API_console_key=APIKEY) 
+
+# drawing a background and adding a contour map, Fig.3.1b
+par(mar=c(0,0,0,0))
+PlotPolysOnStaticMap(MyMap, shp, lwd=1, col=rgb(0.25, 0.25, 0.25, 0.025), add=FALSE)
+
+library(OpenStreetMap)
+maz_box # reminder of the border values of the voi area of Mazowieckie
+
+# limits entered manually
+maz_osm<-openmap(c(53.49415,19.23987),c(51.00077,23.14775)) 
+
+# I method - in the original layout of the OSM underlay - Fig.3.2a
+# change in the layout of the Masovian facility to native OSM
+plot(maz_osm)
+plot(spTransform(mazowieckie, osm()), add=TRUE) 
+ 
+# II method - in a data system consistent with administrative boundaries
+maz_osm.2180<-openproj(maz_osm, CRS(polish_borders)) # Fig.3.2b
+
+plot(maz_osm.2180)
+plot(mazowieckie, lwd=2, border="red", add=TRUE)
+
+waw<-pow[pow@data$jpt_name_=="powiat Warszawa",] 
+polygon(waw@polygons[[1]]@Polygons[[1]]@coords) # adding Warsaw contour
+
+library(ggplot2)
+maz.f<-fortify(mazowieckie)
+# figure similar to previous ones
+autoplot(Maz_osm.2180) + geom_polygon(aes(x=long, y=lat, group=group), data=maz.f, colour='red', alpha=0, size=0.3) 
+
+library(OpenStreetMap) # Fig.3.3
+nm< c("osm", "bing", "stamen-toner", "stamen-terrain", "stamen-watercolor", "esri", "esri-topo", "nps", "apple-iphoto")
+par(mfrow=c(3,3))
+for(i in 1:length(nm)){
+  par(mar=c(1,0,1,0))
+    map<-openmap(c(53.49415,19.23987),c(51.00077,23.14775),type=nm[i])
+plot(map)
+title(main = nm[i])}
+ 
+library(ggmap)
+register_google(key=APIKEY) # previously defined key
+ggmap_hide_api_key()
+ggmap(get_map(geocode("Olsztyn, Poland"), maptype="roadmap", source="google"))
+
+gc<-geocode("Olsztyn, Poland")
+gc
+
+ggmap(get_map(location="Poland", maptype="roadmap", source="google", zoom=6))
+
+ggmap(get_map(location=c(22.57, 51.24), source="stamen", maptype="watercolor", crop=FALSE, zoom=10))
+
+# drawing with the plot() command
+MyMap2<-get_map(location='Poland', zoom=4) # from the ggmap package
+plot(MyMap2) # Fig.3.5a
+MyMap2<-get_map(location='Poland', zoom=6) # from the ggmap package
+plot(MyMap2) # similar to Fig.3.5a, but higher zoom
+
+# Road system around Lublin - using different approximations (zoom)
+# drawing with the ggmap() command
+loc<-c(22.57, 51.24)
+
+Lublin<-get_map(location=loc, source="stamen", maptype="watercolor", crop=FALSE, zoom=10, scale=2)
+ggmap(Lublin) # Fig.3.6a
+
+Lublin<-get_map(location=loc, source="stamen", maptype="watercolor", crop=FALSE, zoom=12, scale=2)
+ggmap(Lublin) # Fig.3.6b
+
+Lublin<-get_map(location=loc, source="stamen", maptype="watercolor", crop=FALSE, zoom=13, scale=2)
+ggmap(Lublin) # Fig.3.6c
+
+qmap(location='University of Warsaw', zoom=14) # from the ggmap package
+qmap(location='Uniwersytet Warszawski', zoom=13) # Fig.3.5b
+
+library(raster)
+ccodes() 		# full list 
+ccodes()[181,] 	# the list is limited to one country
+
+voi<-getData('GADM', country='PL', level=1) # from the raster package::
+attributes voi) # checking attributes and slot names
+voi$NAME_1 # names of subregions
+dim(voi) # length of set - number of regions
+pov<-getData('GADM', country='PL', level=2) # other level of aggregation
+gm<-getData('GADM', country='PL', level=3) # different level of aggregation
+pol<-getData('GADM', country='PL', level=0) # other level of aggregation
+
+plot(pol, lwd=3)	# multi-layer figure for two aggregate levels, Fig.3.7a
+plot(voi, add=TRUE) # country NTS0 & regions NTS2
+
+plot(gm, border='grey70') # multi-layer figure for two aggregate levels
+plot(pov, add=TRUE) # municipalities NTS5 & poviats NTS4
+	
+#3.3 Ways to visualise spatial data - maps for point and regional data
+Scheme 1 - with bubbleMap() from the RgoogleMaps:: package
+
+# loading prepared data
+populationxy<-read.table("populationxy.csv", sep=";", dec=".",header=TRUE)
+populationxy
+
+# preparation of map components
+library(sp)
+library(rgdal)
+library(RgoogleMaps)
+voi<-readOGR(".", "wojewodztwa") # 16 units 
+voi<-spTransform(voi, CRS(latlong))
+shp<-SpatialPolygons2PolySet(voi) # z pakietu maptools
+APIKEY<-"AbCdEfGhIjKlMnOpRsTuWxYz"  # false Google API key
+bb<-qbbox(lat=shp[,"Y"], lon=shp[,"X"]) # z pakietu RgoogleMaps
+MyMap<-GetMap.bboxMK(bb$lonR, bb$latR, destfile="DC.jpg", API_console_key=APIKEY, SCALE = 2) 
+
+# basic figure based on RgoogleMaps::, Fig.3.7b
+bubbleMap(populationxy, coords=c("yy","xx"), map=MyMap, zcol='total', key.entries = 10000000) # from the RgoogleMaps 
+
+# figure with a legend, similar to Fig.3.7b
+bubbleMap(populationxy, coords=c("yy","xx"), map=MyMap, zcol='total', key.entries=populationxy$Women, LEGEND=T, do.sqrt=TRUE, max.radius=100000)
+
+Scheme 2 - with ggmap() from the ggmap:: package
+
+# map of Poland with the population in large cities - Fig.3.8a
+library(ggmap)
+register_google(key="AbCdEfGhIjKlMnOpRsTuWxYz") # Invalid Google API key
+MyMap2<-get_map(location='Poland', zoom=6) # from the ggmap package::
+
+# based on ggmap::
+ggmap(MyMap2) + geom_point(aes(x=yy, y=xx, size=sqrt(total)), data=populationxy, alpha=.5, color="darkred")+ scale_size(range=c(3,12)) 
+
+# map of Lublin with company locations - Fig.3.8b
+# loading point data regarding the location of firms in Lubelskie
+firms<-read.csv("geoloc_data_firms.csv", header=TRUE, dec=",", sep=";")
+firms$ones<-as.data.frame(rep(1, times=dim(firms)[1]))
+
+# Lublin city map with location of firms (geom_point)
+loc<-c(22.57, 51.24)
+Lublin<-get_map(location=loc, source="stamen", maptype="watercolor", crop=FALSE, zoom=13) # based on ggmap::
+
+ggmap(Lublin) + geom_point(aes(x=coords.x1, y=coords.x2, size=ones/5), data=firms, alpha=0.5, color="darkred", size=0.75) # based on ggmap::
+
+# background map
+p<-ggmap(get_googlemap(center=c(lon=22.85, lat=51.30), zoom=8, scale=2, maptype ='terrain', color = 'color'))
+p 
+
+# background map with an administrative outline (geom_polygon)
+voi<-readOGR(".", "wojewodztwa") # 16 units 
+voi<-spTransform(voi, CRS(latlong))
+lub.voi<-voi[voi$jpt_nazwa_=="lubelskie", ]
+lub.f<-fortify(lub.voi)  # converted for ggmap::
+
+p	# clean background map
+p + geom_polygon(aes(x=long, y=lat, group=group), data=lub.f, size=0.3, fill='grey80', colour='white', alpha=0.3) #background + filled contour
+
+# background map with contour (geom_polygon) and points (geom_point)
+p + geom_polygon(aes(x=long, y=lat, group=group), data=lub.f, colour='white', fill='grey80', alpha=0.3, size=0.3) + geom_point(aes(x=coords.x1, y=coords.x2, size=zatr/5), data=firms, alpha=0.5, color="darkred", size=0.75)
+
+# background map with contour (geom_polygon) and point density (stat_density2d)
+p + geom_polygon(aes(x=long, y=lat, group=group), data=lub.f, colour='white', fill='grey80', alpha=0.3, size=0.3) + stat_density2d(aes(x=coords.x1, y=coords.x2, fill = ..level.., alpha=0.25),size=0.01, bins=30, data=firms, geom="polygon")
+
+# loading city data
+cities.lub<-read.table("cities of lubelskie.csv", sep=";", dec=",", header=TRUE)
+cities.lub
+
+cities.lub$label<-paste(cities.lub$position, cities.lub$city, sep=".")
+
+# background map with contour (geom_polygon), 
+# point density (stat_density2d),
+# and labels (geom_point, geom_label_repel)
+
+library(ggrepel)
+# Fig.3.9a
+p + geom_polygon(aes(x=long, y=lat, group=group), data=lub.f, colour='white', fill='grey80', alpha=0.3, size=0.3) + stat_density2d(aes(x=coords.x1, y=coords.x2, fill = ..level.., alpha=0.25),size=0.01, bins=30, data=firms, geom = "polygon") + geom_point(aes(x=yy, y=xx, stroke=2), colour='grey80', data=cities.lub, size=0.5) + geom_label_repel(aes(x=yy, y=xx, label=city), data=cities.lub, family='Times', size=2, box.padding=0.2, point.padding=0.3, segment.color='grey50')
+
+# Fig.3.9b
+# background map with contour (geom_polygon), 
+# point density (stat_density2d) and isolines (geom_density2d)
+p + geom_polygon(aes(x=long, y=lat, group=group), data=lub.f, colour='white', fill='grey80', alpha=0.3, size=0.3) + stat_density2d(aes(x=coords.x1, y=coords.x2, fill = ..level.., alpha= 0.25), size=0.01, bins=30, data=firms, geom="polygon") + geom_density2d(data=firms, aes(x=coords.x1, y=coords.x2), size=0.3)
+
+Scheme 3 - with PlotOnStaticMap() from the RgoogleMap:: package
+
+# basing on RgoogleMap
+library(RgoogleMaps)
+Lat<-as.vector(populationxy$xx)
+Lon<-as.vector(populationxy$yy)
+
+# default type map - roadmap
+MyMap1<-MapBackground(lat=Lat, lon=Lon, zoom=10, API_console_key=APIKEY, SCALE=2) 
+PlotOnStaticMap(MyMap1, Lat, Lon, cex=4, pch=21, bg="lightcoral") #bubbles
+
+# satellite map
+MyMap2<-MapBackground(lat=Lat, lon=Lon, zoom=9, maptype="satellite", API_console_key=APIKEY)
+PlotOnStaticMap(MyMap2, Lat, Lon, cex=4, pch=21, bg="lightcoral") #Bubbles
+
+# site map, map from Google with cities
+MyMap3<-MapBackground(lat=Lat, lon=Lon, zoom=10, maptype="terrain", API_console_key=APIKEY, SCALE=2)
+PlotOnStaticMap(MyMap3, Lat, Lon) 
+
+# hybrid map, map from Google with land coverage and cities
+MyMap4<-MapBackground(lat=Lat, lon=Lon, zoom=10, maptype="hybrid", API_console_key=APIKEY, SCALE=2)
+PlotOnStaticMap(MyMap4, Lat, Lon)
+
+Scheme 4 - with RGoogleMaps:: GetMap() and conversion of staticMap into a raster
+
+# draws staticMap scaled in (0,0) as a raster
+# The own backdrop() function works here, which transforms staticMap
+backdrop<-function(gmt){
+limx<-c(-320,320)
+limy<-c(-320,320)
+par(mar=c(0,0,0,0))
+plot(limx, limy, type='n', asp=1, xlab='', ylab='', xaxt='n', yaxt='n', bty='n')
+box()
+rasterImage(gmt$myTile, -320,-320,320,320)
+} # end of function
+
+# downloads and draws a map, using RgoogleMaps:: 
+LivMap<-GetMap(center=c(51.25,22.55), zoom=11, API_console_key=APIKEY, SCALE=2)
+backdrop(LivMap) # own function
+
+# scaling geographical coordinates to the map scale with RgoogleMaps::
+firms.XY<-LatLon2XY.centered(LivMap, firms[,24], firms[,23])
+
+# drawing maps and layers
+backdrop(LivMap) #background map of Lublin with white points 
+points(firms.XY$newX, firms.XY$newY, pch=16, col='darkred', cex=0.7)
+points(firms.XY$newX, firms.XY$newY, pch=16, col='white', cex=0.5)
+
+backdrop(LivMap) #background map of Lublin with red points
+points(firms.XY$newX, firms.XY$newY, pch=16, col=rgb(0.7, 0,0,0.15), cex=0.7)
+
+#3.4 Spatial data in vector format - example of the OSM database
+
+library(osmdata)
+library(sp)
+library(sf)
+library(rgdal)
+
+head(available_features(),20)
+head(available_tags ("building"),20)
+head(available_tags ("amenity"),20)
+
+latlong <- "+init=epsg:4326"
+pov<-readOGR(".", "powiaty") # 380 units
+WAW<-pov[pov$jpt_kod_je==1465,]
+WAW<-spTransform (WAW, CRS (latlong)) # transformation coordinate to WGS84
+WAW_box<-bbox(WAW) # reading the extreme points of the Warsaw area
+
+WAW_box
+WAW_box2<-getbb("Warszawa, Polska") # osmdata::
+WAW_box2
+
+query_final<-add_osm_feature(query, key='amenity', value='fuel') 
+query<-opq(WAW_box)%>% add_osm_feature(key='amenity', value='fuel')
+
+petrol_waw.sf<-osmdata_sf(query) # output in sf class
+petrol_waw.sp<-osmdata_sp(query) # output in sp class
+
+petrol_waw.sf
+petrol_waw.sp
+
+par(mar=c(0,0,0,0))
+plot(WAW)
+plot(petrol_waw.sp$osm_points, add=TRUE) # plot of raw data
+
+petrol_waw_clear.sf<-unique_osmdata(petrol_waw.sf)
+par(mar=c(0,0,0,0))
+plot(WAW)
+plot(petrol_waw_clear.sf$osm_points$geometry, pch=3, add=TRUE) # Fig.3.10a
+
+par(mar=c(0,0,0,0))
+plot(WAW)
+plot(petrol_waw_clear.sf$osm_points$geometry, pch=3,add=TRUE)
+plot(petrol_waw_clear.sf$osm_polygons$geometry, add=TRUE)
+
+# Fig.3.10b
+petrol_waw_clear_center<-st_centroid(petrol_waw_clear.sf$osm_polygons)
+par(mar=c(0,0,0,0))
+plot(WAW)
+plot(petrol_waw_clear.sf$osm_points$geometry, pch=3, add=TRUE)
+plot(petrol_waw_clear_center, pch=3, col="red", add=TRUE) # red centers
+ 
+WAW_box2.poly<-getbb("Warszawa, Polska", format_out = 'polygon')
+head(WAW_box2.poly[[1]])
+
+# object limited to the borders of Warsaw
+petrol_waw_clear2.sf<-trim_osmdata(petrol_waw_clear.sf,WAW_box2.poly) 
+par(mar=c(0,0,0,0))
+plot(WAW)
+plot(petrol_waw_clear2.sf$osm_points$geometry, pch=3,add=TRUE)
+
+query1<-opq(WAW_box)%>%
+          add_osm_feature(key='amenity', value='fuel')%>%
+          add_osm_feature(key='name', value='Shell', value_exact=FALSE)
+petrol_waw_Shell.sf<-osmdata_sf(query1)
+
+petrol_waw_Shell.sf<-trim_osmdata(petrol_waw_Shell.sf, WAW_box2.poly)
+bb_poly has more than one polygon; the first will be selected
+par(mar=c(0,0,0,0))
+plot(WAW)
+plot(petrol_waw_Shell.sf$osm_points$geometry, pch=3, add=TRUE)
+plot(petrol_waw_Shell.sf$osm_polygons$geometry, add=TRUE)
+petrol_waw_Shell.sf # first three only
+# information about point objects converted to data.frame class
+petrol_waw_Shell.df <-as.data.frame ($ petrol_waw_Shell.sf osm_points)
+# similarly can be done with polygons
+
+#3.5 Access to non-spatial internet databases and resources via API - examples
+
+library (rdbnomics)
+#Visit <https://db.nomics.world>.
+library (ggplot2) # package used for charts
+
+rdb_prov<-rdb_providers() # data providers for the DB NOMICS website
+head(rdb_prov) # first four only
+rdb_upd <-rdb_last_updates() # list of the last 100 updates
+head (rdb_upd, 4) # for example, a list of the last 4 updates is shown
+
+# execution in the following days may give a different result each time
+rdb_upd[99] 
+
+# download data series from DB NOMICS
+milk_PL_dbn<-rdb('Eurostat/apro_mk_pobta/A.D2100.PRO.PL') 
+class(milk_PL_dbn)
+#[1] "data.table" "data.frame"
+tail(milk_PL_dbn) # Last 6 records retrieved, 4 in output
+
+ggplot(milk_PL_dbn, aes(x=period , y=value, color=series_code)) +  
+       geom_line(size=1) + 
+       theme(legend.position="bottom",  legend.title=element_blank())
+
+milk_EU28_dbn<-rdb(provider_code = 'Eurostat', 
+          dataset_code = 'apro_mk_pobta', 
+          dimensions = list(dairyprod="D2100", milkitem="PRO", geo="EU28"))
+tail(milk_EU28_dbn) # below only 3 lines
+
+milk_PLRO_dbn<-rdb(provider_code='Eurostat', dataset_code='apro_mk_pobta', 
+    dimensions=list(dairyprod="D2100", milkitem="PRO", geo=c("PL","RO")))
+
+milk_PLRO_dbn<-rdb(c('Eurostat/apro_mk_pobta/A.D2100.PRO.PL', 'Eurostat/apro_mk_pobta/A.D2100.PRO.RO')) 
+tail(milk_PL_dbn) # below 3 lines only 
+
+ggplot(milk_PLRO_dbn, aes(x=period , y=value, color=series_code)) +
+     geom_line(size=1) + 
+     theme(legend.position="bottom",  legend.title=element_blank())
+
+milk_ALL_dbn<-rdb(provider_code='Eurostat', dataset_code='apro_mk_pobta',
+ mask='A.D2100.PRO.') 
+dim(milk_ALL_dbn) # dimensions of the obtained data set
+#[1] 1173   15
+
+table(milk_ALL_dbn$geo) # number of observations from Datago country
+milk_AL_dbn<-rdb_by_api_link('https://api.db.nomics.world/v22/series/Eurostat/apro_mk_pobta/A.D2100.PRO.AL?observations=1')
+
+library(remotes) 
+remotes::install_github("statisticspoland/R_Package_to_API_BDL", 
+upgrade= "always")
+
+library (bdl)
+search_subjects("unempl", lang="en")
+search_variables("unempl", lang="en")
+get_subjects(parentId = "G12", lang="en")
+
+# subjectID based on previous search
+get_variables(subjectId = "P1385", lang="en") # A tibble: 12 x 7
+get_variables(subjectId = "P1944", lang="en") 
+unempl_gm<-get_data_by_variable(varId="10514", lang="en") 
+tail(unempl_gm, 5) # last 5 records
+unempl_gm[unempl_gm$name=="POLSKA",] # Summary date at country level
+
+line_plot(data_type="unit", unitId="000000000000", varId= c("10515","33484"), lang="en") # Fig.3.14a
+
+generate_map(varId="10514", year="2017", unitLevel=2, lang="en"), Fig.3.14b
+
+search_units("barcin", lang="en") 
+
+# subunit search for the parent unit 040416719000
+get_units(parentId = "040416719000", lang="en")
+
+library("httr")
+library("jsonlite")
+
+U1_result<-GET("https://polon.nauka.gov.pl/opi-ws/api/academicInstitutions") # query result assigned to variable
+U1_parsed <- fromJSON(content(U1_result,"text"), simplifyVector = TRUE, flatten = TRUE) # transformed object to readable form in the letter class
+U1.df<-as.data.frame(U1_parsed$institutions) # result content in the data.frame class object
+head(U1.df) # first four only
+nrow(U1.df) # number of rows in the result
+
+U1_result
+U1_result$status_code # direct reference to the status of the response
+
+# clearing variables from any previous code launches
+rm(output,output_temp,parsed,resp,i,q_url) 
+
+q_url<-paste("https://polon.nauka.gov.pl/opi-ws/api/institutions/",U1.df$uid[1], sep="")
+
+resp<-GET(q_url)
+parsed<-jsonlite::fromJSON(content(resp,"text"), simplifyVector = TRUE, flatten = TRUE)
+output<-as.data.frame(parsed)
+
+for(i in 2:10) # replacing 10 with nrow (U1_df) would retrieve information about all schools.
+{
+  q_url<-paste("https://polon.nauka.gov.pl/opi-ws/api/institutions/",U1.df$uid[i],sep="")
+  resp<-GET(q_url)
+  parsed <- fromJSON(content(resp,"text"), simplifyVector = TRUE, flatten = TRUE)
+  output_temp<-as.data.frame(parsed) # temporary object for the current query
+  output[setdiff(names(output_temp), names(output))] <- NA
+  output_temp[setdiff(names(output), names(output_temp))] <- NA
+  output<-rbind(output,output_temp) # adding a temporary object to previously downloaded data
+  }
+
+output # receiving data, 4 lines only 
+
+write.csv2(output,file="./Data2/highschools_PL.csv",quote=TRUE, row.names = FALSE)
+
+#3.6 Geocoding of data
+
+library(ggmap)
+register_google(key="AbCdEfGhIjKlMnOpRsTuWxYz" # false key 
+ggmap_hide_api_key()
+
+population<-read.csv("population.csv", sep=",", stringsAsFactors=FALSE)
+population$lon<-NA
+population$lat<-NA
+
+for(i in 1:nrow(population)){
+  xy<-geocode(paste(population[i,2], "Polska"))
+  population$lon[i]<-xy$lon
+  population$lat[i]<-xy$lat}
+head(population)
+
+# writing to a new result object file after geocoding
+write.csv(population, file="ludnoscxy.csv", row.names=FALSE) 
+
+geocode(population$name[1:5])
+geocode("Pacanów, Polska")
+geocode("Pacanów, Polska", output="latlona")
+geocode("Pacanów, Polska", output="more")
+
+# the result assigned to the temp object due to the length of the result,
+temp<-geocode("Pacanów, Polska", output="all") 
+temp
+temp$results[[1]]$address_components[[1]] # only a fragment of the resulting object is shown
+addresses.df<- data.frame(Lp=integer(), adres=character(), lon=numeric(), lat=numeric(), stringsAsFactors=FALSE) # empty dataframe
+addresses.df[1,]<-c(1,"Długa 44/50, Warszawa, Polska",NA, NA)
+addresses.df[2,]<-c(2,"Wydział Nauk Ekonomicznych, Uniwersytet Warszawski, Warszawa, Polska",NA,NA)
+
+result<-geocode(addresses.df[,2]) # geocoding a total of two addresses
+# adding geocoding results to the source object
+addresses.df[,3:4]<-result 
+addresses.df
+
+addresses.df$regeo<-NA
+addresses.df$regeo[1]<-revgeocode(c(addresses.df$lon[1],addresses.df$lat[1]))
+addresses.df$regeo[2]<-revgeocode(c(addresses.df$lon[2],addresses.df$lat[2]))
+addresses.df
+
+library(ggmap)
+register_google(key="AbCdEfGhIjKlMnOpRsTuWxYz" # false key 
+ggmap_hide_api_key()
+from<-"Krakowskie Przedmieście 26/28, Warszawa, Polska"
+to<-"Długa 44/50, Warszawa, Polska"
+distAB<-mapdist(from, to, mode="bicycling", output="all")
+distAB
+
+from<-"Krakowskie Przedmieście 26/28, Warszawa, Polska"
+to<-"Długa 44/50, Warszawa, Polska"
+distAB<-mapdist(from, to, mode="bicycling", output="simple")
+distAB
+
+from<-"Krakowskie Przedmieście 26/28, Warszawa, Polska"
+to<-"Długa 44/50, Warszawa, Polska"
+wayAB1<-route(from, to, structure="legs")
+wayAB2<-route(from, to, structure="route")
+wayAB3<-route(from, to, alternatives=TRUE)
+
+wayAB4<-trek(from, to, structure="route")
+wayAB1
+wayAB2
+wayAB3
+wayAB4
+
+qmap("Uniwersytet Warszawski, Polska", zoom=13, SCALE=2) +
+geom_path(aes(x=lon, y=lat), colour="red", size=1.5, data=wayAB2, lineend="round") # Fig.3.15a
+
+qmap("Uniwersytet Warszawski, Polska", zoom=14, SCALE=2) +
+geom_path(aes(x=lon, y=lat), colour="red", size=1.5, data=wayAB4, lineend="round") # Fig.3.15b
+
+library(tmaptools)
+library(rgdal)
+library(OpenStreetMap)
+library(sf)
+
+# the simplest form of inquiry
+geocode_OSM("Warszawa, Polska") 
+# address request, detailed result (additional attributes), 
+# result as an object of the data.frame class
+geocode_OSM("Koński Jar 2, Warszawa, Polska", details=TRUE, as.data.frame= TRUE) 
+
+# an example of geocoding and saving several firms from Warsaw
+firms<-read.csv2("firms_warszawa.csv", stringsAsFactors=FALSE)
+# creating a variable with full address 
+firms$Address_full<-paste(firms$Address,firms$Postcode,firms$City,firms$Country, sep=",") 
+
+firms_geo<-geocode_OSM(firms$Address_full)
+firms<-cbind(firms, firms_geo[,2:3]) # adding geocode to firms object 
+# writing to a new result object file after geocoding
+write.csv(firms, file="./Data2/firms_warszawaxy.csv", row.names=FALSE) 
+
+#defining the codes for used coordinates
+latlong<-"+init=epsg:4326"
+google<-"+init=epsg:3857"
+polish_borders<-"+init=epsg:2180"
+
+pov<-readOGR(".", "powiaty") # 380 units
+
+# selection of the area of Warsaw (city with poviat status)
+WAW<-pov[pov$jpt_kod_je==1465,] 
+WAW_latlong <- spTransform(WAW, CRS(latlong))  
+WAW_box<-bbox(WAW_latlong)
+WAW_osm.map<-openmap(c(WAW_box[2,2], WAW_box[1,1]), c(WAW_box[2,1], WAW_box[1,2]))
+par(mfrow=c(1,2)) # division of the graphic window into two active areas
+
+# 1st figure
+# OSM map layout changed to geographical coordinates
+WAW_osm2.map<-openproj(WAW_osm.map, CRS(latlong)) 
+plot(WAW_osm2.map)
+plot(WAW_latlong,add=TRUE) # borders of Warsaw area 
+# geographical coordinates of firms
+crds<-as.data.frame(cbind(firms$lon,firms$lat)) 
+points(crds, pch=16, col="red") 
+
+# 2nd figure
+par(mar=c(0,0,0,0))
+plot(WAW_osm.map) # drawing a map in native OSM system
+WAW_osm<-spTransform(WAW, osm()) # transformation of city boundaries into OSM
+plot(WAW_osm, add=T)
+
+# transformation of company coordinate matrix into OSM
+# use of the sp_project() function from the sf package 
+crds_osm<-sf_project(as.character(CRS(latlong)),as.character(osm()),crds) points(crds_osm, pch=16, col="red")
+ 
+firms<-read.csv2("./Data2/firms_warszawa.csv", stringsAsFactors=FALSE, encoding = "UTF-8")
+firms$Address_full<-paste(firms$Address,firms$Postcode, firms$City, firms$Country, sep=", ")
+osm() # parameters of the original reference system used by OSM maps
+
+CRS arguments:
+ +proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0
++y_0=0 +k=1.0 +units=m +nadgrids=@null +no_defs 
+
+firms_geo<-geocode_OSM(firms$Address_full[1:2], projection = osm())
+firms_geo # the result in x and y is from the Cartesian coordinate system
+
+library(sf)
+# geocoding result directly as an sf object
+firms_geo.sf<-geocode_OSM(firms$Address_full[2:3], as.sf=TRUE) 
+firms_geo.sf
+class(firms_geo.sf)
+
+plot(WAW_latlong) # contour map with two points in sf class
+plot(firms_geo.sf, add=TRUE)
+
+library(OpenStreetMap)
+firms<-read.csv("./Data2/firms_warszawaxy.csv", stringsAsFactors=FALSE, encoding = "UTF-8")
+firms_rev<-rev_geocode_OSM(firms$lon,firms$lat)
+
+# combining the result of regeocoding with the previous base
+firms<-cbind(firms,firms_rev[,3:25]) 
+
+# shown address originally forwarded for geocoding 
+# and the address received after reverse geocoding
+
+firms[,c(8,11)]
+
+require(devtools)  
+devtools::install_github(repo = 'rCarto/photon')  
+
+library(httr)
+library(jsonlite)
+
+# simplest location request (address)
+resp<-GET("https://photon.komoot.de/api/?q='Długa+44/50+Warszawa'")
+parsed <- fromJSON(content(resp,"text"), flatten = TRUE)
+parsed$features # result converted to an object of data.frame class
+parsed$features$geometry.coordinates
+parsed$features$geometry.coordinates[[1]][[1]] # longitude
+parsed$features$geometry.coordinates[[1]][[2]] # latitude
+
+# limiting the results to the first
+resp<-GET("https://photon.komoot.de/api/?q='Długa+44/50+Warszawa'&limit=1")
+parsed <- fromJSON(content(resp,"text"), flatten = TRUE)
+parsed$features
+# limiting the results to a specific value of the OSM attribute (here: university)
+resp<-GET("https://photon.komoot.de/api/?q='Długa+44/50+Warszawa'&osm_tag=:university")
+parsed <- fromJSON(content(resp,"text"), flatten = TRUE)
+parsed$features 
+
+firms<-read.csv2("./Data2/firms_warszawa.csv", stringsAsFactors=FALSE, encoding = "UTF-8")
+firms$Address_full<-paste(firms$Address,firms$Postcode,firms$City,firms$Country, sep=" ")
+firms$lat<-NA
+firms$lon<-NA
+firms$geoadres<-NA
+Result<-data.frame(id=numeric(length=nrow(firms)), result=numeric(length=nrow(firms)), status=character(length=nrow(firms)), whichone=numeric(length=nrow(firms)),stringsAsFactors=FALSE)
+
+for(i in 1:nrow(firms))
+{
+  q_url<-paste("https://photon.komoot.de/api/?q='",firms$Address_full[i],"'",sep="")
+  q_url<-URLencode(q_url)
+  resp<-GET(q_url)
+  parsed <- jsonlite::fromJSON(content(resp,"text"), flatten = TRUE)
+  parsed<-parsed$features
+  print(paste(i, nrow(parsed)))
+  Result$id[i]<-i
+  if (!is.null(nrow(parsed))) {
+    Result$result[i]<-nrow(parsed)
+    if (length(which(parsed$properties.osm_key=="building"))!=0) {
+      j<-min(which(parsed$properties.osm_key=="building"))
+    } else {
+      j<-1
+    }
+    firms$lat[i]<-as.numeric(parsed$geometry.coordinates[[j]][2])
+    firms$lon[i]<-as.numeric(parsed$geometry.coordinates[[j]][1])
+    firms$geoadres[i]<-as.character(paste(parsed$properties.street[[j]],parsed$properties.housenumber[[j]],parsed$properties.postcode[[j]],parsed$properties.city[[j]],sep=" "))
+    Result$status[i]<-"OK"
+    Result$whichone[i]<-j
+  }  else {
+    Result$result[i]<-NA
+    Result$status[i]<-"BAD"
+  }
+  
+  Sys.sleep(1)
+}
+Result
+rm(resp,parsed,q_url,i,j)

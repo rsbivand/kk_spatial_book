@@ -1,0 +1,685 @@
+##############################################
+#Przestrzenne metody ilościowe w R: statystyka, ekonometria, uczenie maszynowe, analiza danych
+#Redakcja Katarzyna Kopczewska
+#Autorzy: Katarzyna Kopczewska, Maria Kubara, Piotr Ćwiakowski, Mateusz Kopyt, Piotr Wójcik, Alessandro Festi, Kateryna Zabarina
+#Warszawa, 2020, CeDeWu
+#Wydanie książki zostało sfinansowane z grantu Narodowego Centrum Nauki (NCN) pt. Modele ekonometryczne przestrzenne ze stałą i zmienną strukturą sąsiedztwa. Zastosowanie do wyceny nieruchomości i lokalizacji firm (OPUS 12, umowa nr UMO-2016/23/B/HS4/02363).
+#Książka została wydana w angielskiej wersji językowej jako: Applied Spatial Statistics and Econometrics: Data Analysis in R (redakcja Katarzyna Kopczewska, autorzy: Katarzyna Kopczewska, Maria Kubara, Piotr Ćwiakowski, Mateusz Kopyt, Piotr Wójcik, Alessandro Festi, Kateryna Zabarina), Routledge, 2020
+##############################################
+
+#Rozdział 3
+#Dane przestrzenne z Web API
+#Mateusz Kopyt, Katarzyna Kopczewska
+
+#3.1 Czym jest API ?
+#3.2 Tworzenie map kontekstowych - wykorzystanie podkładów z serwerów API
+
+library(RgoogleMaps)
+library(PBSmapping)
+library(maptools)
+library(rgdal)
+
+pl<-readOGR("./Dane", "Panstwo",  use_iconv=TRUE, encoding='Windows-1250') 
+woj<-readOGR("./Dane", "wojewodztwa",  use_iconv=TRUE, encoding='Windows-1250') 
+pow<-readOGR("./Dane", "powiaty", use_iconv=TRUE, encoding='Windows-1250') 
+mazowieckie<-woj[woj@data$jpt_nazwa_=='mazowieckie',] 
+
+class(mazowieckie)
+proj4string(mazowieckie) 
+
+latlong <- "+init=epsg:4326"
+google <- "+init=epsg:3857"
+polish_borders<-"+init=epsg:2180"
+
+CRS(latlong)
+CRS(google)
+CRS(polish_borders)
+
+# przypisanie do zmiennej indywidualnego klucza dostępu do Google API, 
+# klucz nieprawdziwy
+APIKEY<-"AbCdEfGhIjKlMnOpRsTuWxYz" 
+
+mazowieckie.lonlat<-spTransform(mazowieckie,CRS(latlong)) 
+maz.polyset<-SpatialPolygons2PolySet(mazowieckie.lonlat) # z maptools::
+maz_box<-qbbox(lat=maz.polyset[,"Y"], lon=maz.polyset[,"X"]) # RgoogleMaps::
+
+# granice obszaru do pobrania - II metoda
+maz_box2<-bbox(mazowieckie.lonlat) 
+maz_box
+maz_box2
+
+Maz.map<-GetMap.bbox(maz_box$lonR, maz_box$latR, destfile="MAZ_Google.png", SCALE=2, API_console_key=APIKEY)
+class (Maz.map)
+
+# rysowanie podkładu i dodanie mapy konturowej, rys.3.1a
+par(mar=c(0,0,0,0))
+PlotPolysOnStaticMap(Maz.map, maz.polyset, lwd=2, col=rgb(0.25, 0.25, 0.25, 0.025), border = "red",add=FALSE)
+ 
+library(RgoogleMaps)
+library(PBSmapping)
+library(maptools)
+library(rgdal)
+
+# przytgotowanie konturu i bounding box
+woj.lonlat<-spTransform(woj,CRS(latlong))
+woj.polyset<-SpatialPolygons2PolySet(woj.lonlat) # z pakietu maptool
+bb<-qbbox(lat=woj.polyset[,"Y"], lon=woj.polyset[,"X"]) # z pakietu RgoogleMaps
+
+# z RgoogleMaps - generuje mapę w klasie "staticMap", rys.3.1b
+MyMap<-GetMap.bbox(bb$lonR, bb$latR, destfile="DC.jpg", SCALE=2, API_console_key=APIKEY) 
+
+# rysowanie podkładu i dodanie mapy konturowej
+par(mar=c(0,0,0,0))
+PlotPolysOnStaticMap(MyMap, shp, lwd=1, col=rgb(0.25, 0.25, 0.25, 0.025), add=FALSE)
+
+library(OpenStreetMap)
+maz_box # przypomnienie wartości granicznych obszaru woj. mazowieckiego
+
+# wartości graniczne wpisane ręcznie
+Maz_osm<-openmap(c(53.49415,19.23987),c(51.00077,23.14775)) 
+
+# I sposób - w układzie oryginalnym podkładu OSM – Rys.3.2a
+plot(Maz_osm)
+plot(spTransform(mazowieckie,osm()), add=TRUE) # zmiana układu obiektu mazowieckie na natywny OSM
+
+# II sposób - w układzie danych zgodnym z granicami administracyjnymi
+Maz_osm.2180<-openproj(Maz_osm, CRS(polish_borders)) # Rys.3.2b
+
+plot(Maz_osm.2180)
+plot(mazowieckie, lwd=2, border="red", add=TRUE)
+
+waw<-pow[pow@data$jpt_nazwa_=="powiat Warszawa",] 
+polygon(waw@polygons[[1]]@Polygons[[1]]@coords, lwd=2) # dodanie konturu Warszawy
+
+library(ggplot2)
+maz.f<-fortify(mazowieckie)
+
+autoplot(Maz_osm.2180) + geom_polygon(aes(x=long, y=lat, group=group), data=maz.f, colour='red', alpha=0, size=0.3) # jak rys.3.2
+
+library(OpenStreetMap)
+nm<-c("osm", "bing", "stamen-toner", "stamen-terrain", "stamen-watercolor", "esri", "esri-topo", "nps", "apple-iphoto")
+par(mfrow=c(3,3))
+for(i in 1:length(nm)){
+  par(mar=c(1,0,1,0))
+    map<-openmap(c(53.49415,19.23987),c(51.00077,23.14775),type=nm[i])
+plot(map) # rys.3.3
+title(main=nm[i])
+}
+ 
+library(ggmap)
+register_google(key=APIKEY) # wcześniej zdefiniowany klucz
+ggmap_hide_api_key()
+ggmap(get_map(geocode("Olsztyn, Poland"), maptype="roadmap", source="google"))
+
+gc<-geocode("Olsztyn, Poland")
+gc
+
+ggmap(get_map(location="Poland", maptype="roadmap", source="google", zoom=6))
+
+ggmap(get_map(location=c(22.57, 51.24), source="stamen", maptype="watercolor", crop=FALSE, zoom=10))
+
+# rysowanie komendą plot(),  rys.3.5
+MyMap2<-get_map(location='Poland', zoom=4, scale=2) # z pakietu ggmap
+plot(MyMap2)
+MyMap2<-get_map(location='Poland', zoom=6, scale=2) # z pakietu ggmap
+plot(MyMap2)
+
+# układ drogowy okolic Lublina – wykorzystanie różnych przybliżeń (zoom)
+# rysowanie komendą ggmap(), rys.3.6
+loc<-c(22.57, 51.24)
+
+Lublin<-get_map(location=loc, source="stamen", maptype="watercolor", crop=FALSE, zoom=10, scale=2)
+ggmap(Lublin)
+
+Lublin<-get_map(location=loc, source="stamen", maptype="watercolor", crop=FALSE, zoom=12, scale=2)
+ggmap(Lublin)
+
+Lublin<-get_map(location=loc, source="stamen", maptype="watercolor", crop=FALSE, zoom=13, scale=2)
+ggmap(Lublin)
+
+qmap(location='University of Warsaw', zoom=14, scale=2) # z pakietu ggmap
+qmap(location='Uniwersytet Warszawski', zoom=13, scale=2) # z pakietu ggmap
+
+library(raster)
+ccodes() 		# pełna lista 
+ccodes()[181,] 	# lista ograniczona do jednego kraju
+
+woj<-getData('GADM', country='PL', level=1) # z pakietu raster::
+attributes(woj)			# sprawdzenie atrybutów i nazw slotów 	
+woj$NAME_1				# nazwy podregionów
+dim(woj)				# długość zbioru – liczba regionów
+
+pow<-getData('GADM', country='PL', level=2) # inny poziom agregacji
+gm<-getData('GADM', country='PL', level=3) # inny poziom agregacji
+pol<-getData('GADM', country='PL', level=0) # inny poziom agregacji
+
+plot(pol, lwd=3)	# rysunek warstwowy dwóch wyższych poziomów agreg.
+plot(woj, add=TRUE) # rys.3.8a
+
+plot(gm, border='grey70') # rys. warstw. 2 niższych poziomów agreg.
+plot(pow, add=TRUE) # rys.3.8b
+
+#3.3 Sposoby wizualizacji danych przestrzennych - mapy dla danych punktowych i regionalnych
+
+#Schemat 1 – z bubbleMap() z pakietu RgoogleMaps::
+
+# wczytanie przygotowanych danych
+ludnośćxy<-read.table("ludnośćxy.csv", sep=";", dec=".",header=TRUE)
+ludnośćxy
+
+# przygotowanie składowych mapy
+library(sp)
+library(rgdal)
+library(RgoogleMaps)
+woj<-readOGR(".", "wojewodztwa") # 16 jedn. 
+woj<-spTransform(woj, CRS(latlong))
+shp<-SpatialPolygons2PolySet(woj) # z pakietu maptools
+APIKEY<-"AbCdEfGhIjKlMnOpRsTuWxYz"  # nieprawdziwy klucz Google API
+bb<-qbbox(lat=shp[,"Y"], lon=shp[,"X"]) # z pakietu RgoogleMaps
+MyMap<-GetMap.bboxMK(bb$lonR, bb$latR, destfile="DC.jpg", API_console_key=APIKEY, SCALE = 2) 
+
+# rysunek podstawowy na bazie RgoogleMaps::, rys.3.9a
+bubbleMap(ludnośćxy, coords=c("yy","xx"), map=MyMap, zcol='ogółem', key.entries = 10000000) # z pakietu RgoogleMaps 
+
+# rysunek z legendą, rys.3.9b
+bubbleMap(ludnośćxy, coords=c("yy","xx"), map=MyMap, zcol='ogółem', key.entries=ludnośćxy$Kobiety, LEGEND=T, do.sqrt=TRUE, max.radius=100000)
+
+#Schemat 2 – z ggmap() z pakiektu ggmap:: 
+
+# mapa Polski z oznaczeniem liczby ludności w dużych miastach – Rys.3.10a
+library(ggmap)
+register_google(key="AbCdEfGhIjKlMnOpRsTuWxYz") # nieprawdziwy klucz GoogleAPI
+MyMap2<-get_map(location='Poland', zoom=6) # z pakietu ggmap::
+
+ggmap(MyMap2) + geom_point(aes(x=yy, y=xx, size=sqrt(ogółem)), data=ludnośćxy, alpha=.5, color="darkred")+ scale_size(range=c(3,12)) # na bazie ggmap
+# mapa Lublina z lokalizacjami firm – Rys.Xb
+# wczytanie danych punktowych dotyczących lokalizacji firm w Lubelskim
+firmy<-read.table("geoloc data.csv", sep=";", dec=".",header=TRUE)
+firmy$ones<-as.data.frame(rep(1, times=dim(firmy)[1]))
+
+# mapa miasta Lublin z lokalizacją firm (geom_point) – Rys.3.10b
+loc<-c(22.57, 51.24)
+Lublin<-get_map(location=loc, source="stamen", maptype="watercolor", crop=FALSE, zoom=13) # na bazie ggmap
+
+ggmap(Lublin) + geom_point(aes(x=coords.x1, y=coords.x2, size=ones/5), data=firmy, alpha=0.5, color="darkred", size=0.75) # na bazie ggmap
+
+# mapa podkładowa
+p<-ggmap(get_googlemap(center=c(lon=22.85, lat=51.30), zoom=8, scale=2, maptype ='terrain', color = 'color'))
+
+# mapa podkładowa z konturem administracyjnym (geom_polygon)
+woj<-readOGR(".", "wojewodztwa") # 16 jedn. 
+woj<-spTransform(woj, CRS(latlong))
+lub.woj<-woj[woj$jpt_nazwa_=="lubelskie", ]
+lub.f<-fortify(lub.woj)  # konwersja na potrzeby ggmap::
+
+p # mapa podkładowa oraz przezroczysty kontur
+p + geom_polygon(aes(x=long, y=lat, group=group), data=lub.f, colour='white', fill='grey80', alpha=0.3, size=0.3)
+
+# mapa podkładowa z konturem (geom_polygon) i punktami (geom_point)
+p + geom_polygon(aes(x=long, y=lat, group=group), data=lub.f, colour='white', fill='grey80', alpha=0.3, size=0.3) + geom_point(aes(x=coords.x1, y=coords.x2, size=zatr/5), data=firmy, alpha=0.5, color="darkred", size=0.75) 
+
+# mapa podkładowa z konturem (geom_polygon) i gęstością punktów (stat_density2d)
+p + geom_polygon(aes(x=long, y=lat, group=group), data=lub.f, colour='white', fill='grey80', alpha=0.3, size=0.3) + stat_density2d(aes(x=coords.x1, y=coords.x2, fill = ..level.., alpha=0.25),size=0.01, bins=30, data=firmy, geom="polygon")
+
+# wycztywanie danych nt. miast
+miasta.lub<-read.table("miasta lubelskie.csv", sep=";", dec=",", header=TRUE)
+miasta.lub
+miasta.lub$label<-paste(miasta.lub$pozycja, miasta.lub$miasto, sep=".")
+
+# mapa podkładowa z konturem (geom_polygon), 
+# gęstością punktów (stat_density2d) 
+# i etykietami (geom_point, geom_label_repel)
+
+library(ggrepel)
+# rys.3.11a
+p + geom_polygon(aes(x=long, y=lat, group=group), data=lub.f, colour='white', fill='grey80', alpha=0.3, size=0.3) + stat_density2d(aes(x=coords.x1, y=coords.x2, fill = ..level.., alpha=0.25),size=0.01, bins=30, data=firmy, geom = "polygon") + geom_point(aes(x=yy, y=xx, stroke=2), colour='grey80', data=miasta.lub, size=0.5) + geom_label_repel(aes(x=yy, y=xx, label=miasto), data=miasta.lub, family='Times', size=2, box.padding=0.2, point.padding=0.3, segment.color='grey50')
+
+# rys.3.11b
+# mapa podkładowa z konturem (geom_polygon), gęstością punktów (stat_density2d) i izoliniami (geom_density2d)
+p + geom_polygon(aes(x=long, y=lat, group=group), data=lub.f, colour='white', fill='grey80', alpha=0.3, size=0.3) + stat_density2d(aes(x=coords.x1, y=coords.x2, fill = ..level.., alpha = 0.25),size=0.01, bins=30, data=firmy, geom="polygon") + geom_density2d(data=firmy, aes(x=coords.x1, y=coords.x2), size=0.3)
+
+#Schemat 3 – z PlotOnStaticMap() z pakietu RgoogleMap::
+
+# na bazie RgoogleMap
+Lat<-as.vector(ludnośćxy$xx)
+Lon<-as.vector(ludnośćxy$yy)
+
+# mapa domyślnego typu – drogowa “roadmap”, rys.3.12a
+MyMap1<-MapBackground(lat=Lat, lon=Lon, zoom=10, API_console_key=APIKEY, SCALE=2) 
+PlotOnStaticMap(MyMap1, Lat, Lon, cex=4, pch=21, bg="lightcoral")
+
+# mapa satelitarna, rys.3.12b
+MyMap2<-MapBackground(lat=Lat, lon=Lon, zoom=9, maptype="satellite", API_console_key=APIKEY)
+PlotOnStaticMap(MyMap2, Lat, Lon, cex=4, pch=21, bg="lightcoral")
+
+# mapa terenu
+MyMap3<-MapBackground(lat=Lat, lon=Lon, zoom=10, maptype="terrain", API_console_key=APIKEY, SCALE=2)
+PlotOnStaticMap(MyMap3, Lat, Lon) 
+
+# mapa hybrydowa
+MyMap4<-MapBackground(lat=Lat, lon=Lon, zoom=10, maptype="hybrid", API_console_key=APIKEY, SCALE=2)
+PlotOnStaticMap(MyMap4, Lat, Lon)
+
+#Schemat 4 – z RGoogleMaps::GetMap() i przekształceniem staticMap na raster
+
+# rysuje staticMap skalowane w (0,0) jako raster
+# działa tu własna funkcja backdrop(), która przekształca staticMap
+backdrop<-function(gmt){
+limx<-c(-320,320)
+limy<-c(-320,320)
+par(mar=c(0,0,0,0))
+plot(limx, limy, type='n', asp=1, xlab='', ylab='', xaxt='n', yaxt='n', bty='n')
+box()
+rasterImage(gmt$myTile, -320,-320,320,320)
+} # koniec funkcji
+
+# pobiera i rysuje mapę podkładową
+LivMap<-GetMap(center=c(51.25,22.55), zoom=11, API_console_key=APIKEY, SCALE=2) #  RgoogleMaps::
+backdrop(LivMap) # funkcja własna
+
+# skalowanie koordynat geograficznych do skali mapy
+firmy.XY<-LatLon2XY.centered(LivMap, firmy[,24], firmy[,23]) # RgoogleMaps::
+
+# rysowanie mapy i warstw
+backdrop(LivMap) # mapa podkładowa z białymi punktami z cieniem
+points(firmy.XY$newX, firmy.XY$newY, pch=16, col='darkred', cex=0.7)
+points(firmy.XY$newX, firmy.XY$newY, pch=16, col='white', cex=0.5)
+
+backdrop(LivMap) # mapa podkładowa z czerwonymi punktami
+points(firmy.XY$newX, firmy.XY$newY, pch=16, col=rgb(0.7, 0,0,0.15), cex=0.7)
+
+#3.4 Dane przestrzenne w formacie wektorowym na przykładzie bazy OSM
+
+library(osmdata)
+library(sp)
+library(sf)
+library(rgdal)
+
+head(available_features (),20)
+head(available_tags("building"),20)
+head(available_tags("amenity"),20)
+
+latlong <- "+init=epsg:4326"
+pow<-readOGR("./Dane", "powiaty", use_iconv=TRUE, encoding='Windows-1250')
+WAW<-pow[pow$jpt_kod_je==1465,]
+WAW<-spTransform(WAW, CRS(latlong))  #transformacja koordynat do WGS84
+WAW_box<-bbox(WAW) #odczytanie skrajnych punktów obszaru Warszawy
+WAW_box
+WAW_box2<-getbb("Warszawa, Polska")
+WAW_box2
+
+query_final<-add_osm_feature(query,key='amenity', value='fuel') 
+query<-opq(WAW_box) %>% add_osm_feature(key='amenity', value='fuel')
+
+petrol_waw.sf<-osmdata_sf(query)
+petrol_waw.sp<-osmdata_sp(query)
+petrol_waw.sf
+petrol_waw.sp
+par(mar=c(0,0,0,0))
+plot(WAW)
+plot(petrol_waw.sp$osm_points, add=TRUE) # Rys.3.13a
+
+petrol_waw_clear.sf<-unique_osmdata(petrol_waw.sf)
+par(mar=c(0,0,0,0))
+plot(WAW)
+plot(petrol_waw_clear.sf$osm_points$geometry, pch=3,add=TRUE) 
+
+par(mar=c(0,0,0,0))
+plot(WAW)
+plot(petrol_waw_clear.sf$osm_points$geometry, pch=3,add=TRUE)
+plot(petrol_waw_clear.sf$osm_polygons$geometry,add=TRUE)
+
+petrol_waw_clear_center<-st_centroid(petrol_waw_clear.sf$osm_polygons)
+par(mar=c(0,0,0,0))
+plot(WAW) # rys.3.13b
+plot(petrol_waw_clear.sf$osm_points$geometry, pch=3,add=TRUE)
+plot(petrol_waw_clear_center, pch=3, col="red", add=TRUE) # czerwone środki 
+
+WAW_box2.poly<-getbb("Warszawa, Polska", format_out = 'polygon')
+head(WAW_box2.poly[[1]])
+
+# obiekt ograniczony do granic Warszawy
+petrol_waw_clear2.sf<-trim_osmdata(petrol_waw_clear.sf,WAW_box2.poly) 
+par(mar=c(0,0,0,0))
+plot(WAW) # rys.3.14a
+plot(petrol_waw_clear2.sf$osm_points$geometry, pch=3,add=TRUE)
+
+query1<-opq(WAW_box)%>%
+          add_osm_feature(key = 'amenity', value = 'fuel')%>%
+             add_osm_feature(key='name', value='Shell', value_exact=FALSE)
+petrol_waw_Shell.sf<-osmdata_sf(query1)
+
+petrol_waw_Shell.sf<-trim_osmdata(petrol_waw_Shell.sf,WAW_box2.poly)
+par(mar=c(0,0,0,0))
+plot(WAW) # rys.3.14b
+plot(petrol_waw_Shell.sf$osm_points$geometry, pch=3,add=TRUE)
+plot(petrol_waw_Shell.sf$osm_polygons$geometry,add=TRUE)
+petrol_waw_Shell.sf # pierssze 3 obserwacje
+
+# informacje o obiektach punktowych przekształcone na klasę data.frame
+petrol_waw_Shell.df<-as.data.frame(petrol_waw_Shell.sf$osm_points) 
+# podobnie można zrobić z wielokątami
+
+#3.5 Dostęp do baz i zasobów danych nieprzestrzennych w internecie przez API w przykładach
+
+library(rdbnomics)
+#Visit <https://db.nomics.world>.
+library (ggplot2) # pakiet użyty do wykresów
+
+rdb_prov<-rdb_providers() # dostarczyciele danych do serwisu DB NOMICS
+head(rdb_prov) # tylko pierwsze trzy obserwacje
+
+rdb_upd[99] # wykonanie w kolejnych dniach może dać każdorazowo inny wynik
+
+# pobieranie serii danych z DB NOMICS
+milk_PL_dbn<-rdb('Eurostat/apro_mk_pobta/A.D2100.PRO.PL') 
+class(milk_PL_dbn)
+tail(milk_PL_dbn) # 6 ostatnich pobranych rekordów
+
+ggplot(milk_PL_dbn, aes(x=period, y=value, color=series_code)) +
+  geom_line(size=1) + theme(legend.position="bottom", legend.title= element_blank()) # por. Rys.3.16
+
+milk_EU28_dbn<-rdb(provider_code='Eurostat', 
+          dataset_code='apro_mk_pobta', 
+          dimensions=list(dairyprod="D2100", milkitem="PRO", geo="EU28"))
+tail(milk_EU28_dbn) 
+
+milk_PLRO_dbn<-rdb(provider_code='Eurostat', dataset_code='apro_mk_pobta', 
+     dimensions=list(dairyprod="D2100", milkitem="PRO", geo=c("PL","RO")))
+
+milk_PLRO_dbn<-rdb(c('Eurostat/apro_mk_pobta/A.D2100.PRO.PL', 'Eurostat/apro_mk_pobta/A.D2100.PRO.RO')) 
+tail(milk_PL_dbn) 
+
+ggplot(milk_PLRO_dbn, aes(x=period , y=value, color=series_code)) +
+  geom_line(size=1) +
+  theme(legend.position="bottom",  legend.title=element_blank()) # rys.3.16
+
+milk_ALL_dbn<-rdb(provider_code='Eurostat', dataset_code='apro_mk_pobta',
+ mask='A.D2100.PRO.') 
+dim(milk_ALL_dbn) # wymiary uzyskanego zbioru danych
+table(milk_ALL_dbn$geo) # liczba obserwacji z danego kraju
+
+milk_AL_dbn<-rdb_by_api_link('https://api.db.nomics.world/v22/series/Eurostat/apro_mk_pobta/A.D2100.PRO.AL?observations=1')
+
+library(remotes) 
+remotes::install_github("statisticspoland/R_Package_to_API_BDL", 
+upgrade= "always")
+
+library (bdl)
+search_subjects("bezrob")
+search_variables("bezrob")
+get_subjects(parentId = "G12")
+
+# subjectID ustalony na podstawie poprzedniego wyszukiwania
+get_variables(subjectId = "P1385") # A tibble: 12 x 7
+get_variables(subjectId = "P1944") 
+bezrob_gm<-get_data_by_variable(varId="10514") 
+tail(bezrob_gm,10) # ostatnie 10 rekordów
+bezrob_gm[bezrob_gm$name=="POLSKA",] # dane zbiorcze na poziomie kraju
+
+# rys.3.18
+line_plot(data_type="unit", unitId="000000000000", varId=c("10515","33484"))
+generate_map(varId="10514", year="2017", unitLevel=2) # rys.3.19
+search_units("barcin") 
+
+# wyszukiwanie podjednostek dla nadrzędnej jednostki 040416719000
+get_units(parentId = "040416719000")
+
+library("httr")
+library("jsonlite")
+
+U1_result<-GET("https://polon.nauka.gov.pl/opi-ws/api/academicInstitutions") # rezultat zapytania przypisany do zmiennej
+U1_parsed <- fromJSON(content(U1_result,"text"), simplifyVector = TRUE, flatten = TRUE) # przekształcony obiekt do czytelnej formy w klasie list
+U1.df<-as.data.frame(U1_parsed$institutions) # zawartość wyniku w obiekcie klasy data.frame 
+head(U1.df)
+nrow(U1.df) # liczba wierszy w wyniku
+
+U1_result
+Response [https://polon.nauka.gov.pl/opi-ws/api/academicInstitutions]
+  Date: 2019-07-27 14:05
+  Status: 200
+  Content-Type: application/json;charset=UTF-8
+  Size: 65.8 kB
+U1_result$status_code # bezpośrednie odwołanie do statusu odpowiedzi
+
+# wyczyszczenie zmiennych z ew. poprzednich uruchomień kodu
+rm(output,output_temp,parsed,resp,i,q_url) 
+
+q_url<-paste("https://polon.nauka.gov.pl/opi-ws/api/institutions/",U1.df$uid[1], sep="")
+
+resp<-GET(q_url)
+parsed<-jsonlite::fromJSON(content(resp,"text"), simplifyVector = TRUE, flatten = TRUE)
+output<-as.data.frame(parsed)
+
+for(i in 2:10) # zastąpienie wartości 10 wyrażeniem nrow(U1_df) spowodowałoby pobranie informacji o wszystkich szkołach.
+{
+  q_url<-paste("https://polon.nauka.gov.pl/opi-ws/api/institutions/",U1.df$uid[i],sep="")
+  resp<-GET(q_url)
+  parsed<-fromJSON(content(resp,"text"), simplifyVector=TRUE, flatten=TRUE)
+  output_temp<-as.data.frame(parsed) # obiekt tymczasowy dla aktualnego zapytania
+  output[setdiff(names(output_temp), names(output))] <- NA
+  output_temp[setdiff(names(output), names(output_temp))] <- NA
+  output<-rbind(output,output_temp) # dołaczenie obiektu tymczasowego do wcześniej pobranych danych
+  }
+
+output # uzyskane dane
+
+write.csv2(output,file="./Dane2/highschools_PL.csv",quote=TRUE, row.names = FALSE)
+
+#3.6 Geokodowanie danych
+
+library(ggmap)
+register_google(key="AbCdEfGhIjKlMnOpRsTuWxYz" # klucz nieprawdziwy) 
+ggmap_hide_api_key()
+
+ludność<-read.csv("./Dane2/ludność w miastach.csv", sep=",", stringsAsFactors=FALSE, encoding="UTF-8")
+ludność$lon<-NA
+ludność$lat<-NA
+
+for(i in 1:nrow(ludność)){
+  xy<-geocode(paste(ludność[i,2], "Polska"))
+  ludność$lon[i]<-xy$lon
+  ludność$lat[i]<-xy$lat
+}
+head(ludność)
+
+# zapis do nowego pliku obiektu wynikowego po geokodowaniu
+write.csv(ludność, file="./Dane2/ludnoscxy.csv", row.names=FALSE) 
+
+geocode(ludność$nazwa[1:5])
+geocode("Pacanów, Polska")
+geocode("Pacanów, Polska", output="latlona")
+geocode("Pacanów, Polska", output="more")
+
+# z uwagi na długość rezultatu wynik przypisany do obiektu temp
+temp<-geocode("Pacanów, Polska", output="all") 
+temp
+temp$results[[1]]$address_components[[1]] # fragment obiektu wynikowego
+
+adresy.df<-data.frame(Lp=integer(), adres=character(), lon=numeric(), lat=numeric(), stringsAsFactors=FALSE) # pusty obiekt typu dataframe
+adresy.df[1,]<-c(1,"Długa 44/50, Warszawa, Polska",NA, NA)
+adresy.df[2,]<-c(2,"Wydział Nauk Ekonomicznych, Uniwersytet Warszawski, Warszawa, Polska",NA,NA)
+
+result<-geocode(adresy.df[,2]) # geokodowanie łącznie dwóch adresów
+# dopisanie do obiektu źródłowego rezultatów geokodowania
+adresy.df[,3:4]<-result 
+adresy.df
+
+adresy.df$regeo<-NA
+adresy.df$regeo[1]<-revgeocode(c(adresy.df$lon[1],adresy.df$lat[1]))
+adresy.df$regeo[2]<-revgeocode(c(adresy.df$lon[2],adresy.df$lat[2]))
+adresy.df
+
+library(ggmap)
+register_google(key="AbCdEfGhIjKlMnOpRsTuWxYz" # klucz nieprawdziwy) 
+ggmap_hide_api_key()
+from<-"Krakowskie Przedmieście 26/28, Warszawa, Polska"
+to<-"Długa 44/50, Warszawa, Polska"
+distAB<-mapdist(from, to, mode="bicycling", output="all")
+distAB
+
+from<-"Krakowskie Przedmieście 26/28, Warszawa, Polska"
+to<-"Długa 44/50, Warszawa, Polska"
+distAB<-mapdist(from, to, mode="bicycling", output="simple")
+distAB
+
+from<-"Krakowskie Przedmieście 26/28, Warszawa, Polska"
+to<-"Długa 44/50, Warszawa, Polska"
+wayAB1<-route(from, to, structure="legs")
+wayAB2<-route(from, to, structure="route")
+wayAB3<-route(from, to, alternatives=TRUE)
+wayAB4<-trek(from, to, structure="route")
+wayAB1 # wiersze 1-6 (z 11)
+wayAB2 # wiersze 1-6 (z 10)
+wayAB3 # trasy 1-6 (z 18)
+wayAB4 # wiersze 1-6
+
+qmap("Uniwersytet Warszawski, Polska", zoom=13, SCALE=2) +
+geom_path(aes(x=lon, y=lat), colour="red", size=1.5, data=wayAB2, lineend="round") # rys.3.20a
+
+qmap("Uniwersytet Warszawski, Polska", zoom=14, SCALE=2s) +
+geom_path(aes(x=lon, y=lat), colour="red", size=1.5, data=wayAB4, lineend="round") # rys.3.20b
+
+library(tmaptools)
+library(rgdal)
+library(OpenStreetMap)
+library(sf)
+
+# najprostsza forma zapytania
+geocode_OSM("Warszawa, Polska") 
+
+# zapytanie o adres, wynik szczegółowy (dodatkowe atrybuty), 
+# rezultat jako obiekt klasy data.frame
+geocode_OSM("Koński Jar 2, Warszawa, Polska", details = TRUE, as.data.frame = TRUE) 
+
+# przykład geokodowania wraz z zapisem do pliku dla kilku firm z Warszawy
+firmy<-read.csv2("./Dane2/firmy_warszawa.csv", stringsAsFactors=FALSE, encoding = "UTF-8")
+
+# stworzenie zmiennej z pełnym adresem
+firmy$Address_full<-paste(firmy$Address,firmy$Postcode,firmy$City,firmy$Country, sep=", ") 
+
+firmy_geo<-geocode_OSM(firmy$Address_full)
+firmy<-cbind(firmy, firmy_geo[,2:3]) # złączenie geokodowania i obiektu firmy
+
+# zapis do nowego pliku obiektu wynikowego po geokodowaniu
+write.csv(firmy, file="./Dane2/firmy_warszawaxy.csv", row.names=FALSE) 
+
+# zdefiniowanie kodów używanych układów współrzędnych
+latlong <- "+init=epsg:4326"
+google <- "+init=epsg:3857"
+polish_borders<-"+init=epsg:2180"
+
+pow<-readOGR("./Dane", "powiaty", use_iconv=TRUE, encoding='Windows-1250') 
+
+WAW<-pow[pow$jpt_kod_je==1465,] # wybór obszaru Warszawy 
+WAW_latlong <- spTransform(WAW, CRS(latlong))  
+WAW_box<-bbox(WAW_latlong)
+WAW_osm.map<-openmap(c(WAW_box[2,2], WAW_box[1,1]), c(WAW_box[2,1], WAW_box[1,2]))
+par(mfrow=c(1,2)) # podział okna graficznego na dwa pola - dla dwóch rysunków
+
+# I rysunek, 3.21a
+WAW_osm2.map<-openproj(WAW_osm.map, CRS(latlong)) # zmiana projekcji mapy
+plot(WAW_osm2.map)
+plot(WAW_latlong,add=TRUE) # granice obszaru Warszawy
+crds<-as.data.frame(cbind(firmy$lon,firmy$lat)) # współrzędne geogr. firm
+points(crds, pch=16, col="red") 
+
+# II rysunek, 3.21b
+par(mar=c(0,0,0,0))
+plot(WAW_osm.map) # narysowanie mapy w natywnym układzie OSM
+WAW_osm<-spTransform(WAW, osm()) # transformacja granic miasta na układ OSM
+plot(WAW_osm, add=T)
+
+# transformacja macierzy współrzędnych firm na układ OSM 
+# zastosowanie funkcji sp_project() z pakietu sf 
+crds_osm<-sf_project(as.character(CRS(latlong)),as.character(osm()),crds) points(crds_osm, pch=16, col="red")
+ 
+firmy<-read.csv2("./Dane2/firmy_warszawa.csv", stringsAsFactors=FALSE, encoding = "UTF-8")
+firmy$Address_full<-paste(firmy$Address,firmy$Postcode, firmy$City, firmy$Country, sep=", ")
+osm() # parametry oryginalnego systemu odniesienia używanego przez mapy OSM
+
+firmy_geo<-geocode_OSM(firmy$Address_full[1:2], projection = osm())
+firmy_geo # wynik w x i y jest z kartezjańskiego układu współrzędnych
+
+library(sf)
+# wynik geokodowania bezpośrednio jako obiekt sf
+firmy_geo.sf<-geocode_OSM(firmy$Address_full[2:3], as.sf=TRUE) 
+firmy_geo.sf
+
+class(firmy_geo.sf)
+plot(WAW_latlong) # rys.3.22
+plot(firmy_geo.sf, add=TRUE)
+ 
+library(OpenStreetMap)
+firmy<-read.csv("./Dane2/firmy_warszawaxy.csv", stringsAsFactors=FALSE, encoding="UTF-8")
+firmy_rev<-rev_geocode_OSM(firmy$lon,firmy$lat)
+
+# połaczenie rezultatu regeokodowania z poprzednią bazą
+firmy<-cbind(firmy,firmy_rev[,3:25]) 
+
+# pokazany adres pierwotnie przekazany do geokodowania 
+# oraz adres otrzymany po odwrotnym geokodowaniu
+
+firmy[,c(8,11)]
+
+require(devtools)  
+devtools::install_github(repo = 'rCarto/photon')  
+
+library(httr)
+library(jsonlite)
+
+# najprostsze zapytanie o lokalizację (adres)
+resp<-GET("https://photon.komoot.de/api/?q='Długa+44/50+Warszawa'")
+parsed<-fromJSON(content(resp,"text"), flatten = TRUE)
+parsed$features # rezultat przekształcony do obektu klasy data.frame
+parsed$features$geometry.coordinates
+parsed$features$geometry.coordinates[[1]][[1]] # długość geograficzna
+parsed$features$geometry.coordinates[[1]][[2]] # szerokość geograficzna
+
+#ograniczenie wyników do pierwszego
+resp<-GET("https://photon.komoot.de/api/?q='Długa+44/50+Warszawa'&limit=1")
+parsed<-fromJSON(content(resp,"text"), flatten = TRUE)
+parsed$features
+
+#ograniczenie wyników do konkretnej wartości atrybutu OSM (tu: university)
+resp<-GET("https://photon.komoot.de/api/?q='Długa+44/50+Warszawa'&osm_tag=:university")
+parsed<-fromJSON(content(resp,"text"), flatten = TRUE)
+parsed$features 
+
+firmy<-read.csv2("./Dane2/firmy_warszawa.csv", stringsAsFactors=FALSE, encoding="UTF-8")
+firmy$Address_full<-paste(firmy$Address,firmy$Postcode,firmy$City,firmy$Country, sep=" ")
+firmy$lat<-NA
+firmy$lon<-NA
+firmy$geoadres<-NA
+result<-data.frame(id=numeric(length=nrow(firmy)), wyniki=numeric(length=nrow(firmy)), status=character(length=nrow(firmy)), ktory=numeric(length=nrow(firmy)),stringsAsFactors=FALSE)
+
+for(i in 1:nrow(firmy))
+{
+  q_url<-paste("https://photon.komoot.de/api/?q='",firmy$Address_full[i],"'",sep="")
+  q_url<-URLencode(q_url)
+  resp<-GET(q_url)
+  parsed <- jsonlite::fromJSON(content(resp,"text"), flatten = TRUE)
+  parsed<-parsed$features
+  print(paste(i, nrow(parsed)))
+  result$id[i]<-i
+  if (!is.null(nrow(parsed))) {
+    result$wyniki[i]<-nrow(parsed)
+    if (length(which(parsed$properties.osm_key=="building"))!=0) {
+      j<-min(which(parsed$properties.osm_key=="building"))
+    } else {
+      j<-1
+    }
+    firmy$lat[i]<-as.numeric(parsed$geometry.coordinates[[j]][2])
+    firmy$lon[i]<-as.numeric(parsed$geometry.coordinates[[j]][1])
+    firmy$geoadres[i]<-as.character(paste(parsed$properties.street[[j]],parsed$properties.housenumber[[j]],parsed$properties.postcode[[j]],parsed$properties.city[[j]],sep=" "))
+    result$status[i]<-"OK"
+    result$ktory[i]<-j
+  }  else {
+    result$wyniki[i]<-NA
+    result$status[i]<-"BAD"
+  }
+  
+  Sys.sleep(1)
+}
+result
+rm(resp,parsed,q_url,i,j)

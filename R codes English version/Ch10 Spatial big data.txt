@@ -1,0 +1,300 @@
+##############################################
+#Applied Spatial Statistics and Econometrics: Data Analysis in R (Routledge, 2020) 
+#Przestrzenne metody ilościowe w R: statystyka, ekonometria, uczenie maszynowe, analiza danych (CeDeWu, 2020)
+#Editor: Katarzyna Kopczewska 
+#Authors: Katarzyna Kopczewska, Maria Kubara, Piotr Ćwiakowski, Mateusz Kopyt, Piotr Wójcik, Alessandro Festi, Kateryna Zabarina
+#This book is a part of project supported by the Polish National Science Center (NCN) on „Spatial econometric models with fixed and changing neighborhood structure. Application for real estate valuation and business location” (OPUS 12, contract no. UMO-2016/23/B/ HS4/02363).
+#All sample data used in the book and the codes presented in the content of the book were placed on https://github.com/kkopczewska/spatial_book 
+##############################################
+
+#Chapter 10
+#Spatial big data
+#Piotr Wójcik, orcid.org/0000-0003-1853-8784
+
+#10.1.	Examples of big data applications
+#10.2.	Spatial big data
+#10.2.1. Spatial data types
+#10.2.2. Challenges related to the use of spatial Big Data
+#10.2.2.1. Processing of large data sets
+#10.2.2.2. Mapping and reduction
+#10.2.2.3. Spatial data indexing
+#10.3.	The sd:: package - simple features
+#10.3.1. sf class - a special data frame
+
+library(sf)
+
+#10.3.2. Data with POLYGON geometry
+
+poviats<-st_read("data/poviats.shp")
+class(poviats)
+str(poviats)
+st_is_longlat(poviats)
+st_crs(poviats)
+
+table(st_is_valid(poviats))
+which_incorrect <- which(!st_is_valid(poviats))
+poviats[which_incorrect,]
+poviats2<-lwgeom::st_make_valid(poviats)
+class(st_geometry(poviats2[which_incorrect,]))
+lapply(st_geometry(poviats2[which_incorrect,])[[1]], class)
+st_geometry(poviats2[which_incorrect,])[[1]][[2]]
+
+poviats2[which_incorrect, "geometry"]<-st_collection_extract(st_geometry( poviats2[which_incorrect,]), type= c("POLYGON"), warn = FALSE)
+table(st_is_valid(poviats2))
+
+poviats_sp<-as(poviats2, "Spatial")
+class(poviats_sp)
+
+poviats_sf <- st_as_sf(poviats_sp)
+class(poviats_sf)
+
+print(poviats2[, c("jpt_kod_je", "jpt_nazwa_")], n=5)
+head(poviats2$jpt_kod_je)
+head(st_set_geometry(poviats2[, c("jpt_kod_je", "jpt_nazwa_")],value=NULL))
+head(st_drop_geometry(poviats2[, c("jpt_kod_je", "jpt_nazwa_")]))
+class(poviats2$geometry)
+poviats2 <- poviats2[, c("jpt_kod_je", "jpt_nazwa_")]
+head(poviats2)
+poviats2$code_voi<-substr(poviats2$jpt_kod_je, 1, 2)
+table(poviats2$code_voi)
+plot(poviats2[, "code_voi"])
+poviats_points<-st_cast(poviats2$geometry, "MULTIPOINT")
+class(poviats_points)
+
+length(poviats_points[[1]]) # for first poviat
+
+poviats_points_count<-sapply(poviats_points, length)
+sum(poviats_points_count) # Checking how many vertices are in all counties
+
+pryr::object_size(poviats2)
+poviats_simple<-st_simplify(poviats2, dTolerance = 50)
+
+pryr::object_size(poviats_simple)
+poviats_simple_points<-st_cast(poviats_simple$geometry, "MULTIPOINT")
+sum(sapply(poviats_simple_points, length))
+
+#10.3.3. Data with POINT geometry
+
+poviats_central<-st_centroid(poviats2)
+poviats_central
+class(poviats_central$geometry) # Checking the column class with geometry
+
+plot(st_geometry(poviats2))
+plot(poviats_central$geometry, add=TRUE, pch=20, col="red")
+
+#10.3.4. Visualization using the ggplot2:: package
+
+ggplot(poviats_simple) + geom_sf() + theme_bw()  # 10.2a
+ggplot(poviats_central) + geom_sf() + theme_bw() # 10.2.b
+ggplot(poviats_simple) + geom_sf(aes(fill = code_voi)) + theme_bw()
+
+ggplot() + geom_sf(data=poviats_simple, aes(fill=code_voi)) + geom_sf(data=poviats_central, col="black") + theme_bw()
+
+#10.3.5. Selected functions for spatial analysis
+
+head(st_area(poviats_simple), 10)
+head(st_area(poviats_central), 10)
+(which_warszawa<-which(poviats$jpt_nazwa_ == "powiat Warszawa"))
+(which_bydgoszcz<-which(poviats$jpt_nazwa_ == "powiat Bydgoszcz"))
+(which_katowice<-which(poviats$jpt_nazwa_ == "powiat Katowice"))
+
+# distances from the city borders
+st_distance(poviats[c(which_warszawa, which_bydgoszcz, which_katowice),], 
+poviats[141:145,])
+
+# distances from city centers
+st_distance(poviats_central[c(which_warszawa, which_bydgoszcz, which_katowice),], 
+poviats[141:145,])
+
+# lets omit the second argument
+st_distance(poviats_central[c(which_warszawa, which_bydgoszcz, which_katowice),])
+
+system.time(distances_polygon<-st_distance(poviats[c(which_warszawa, which_bydgoszcz, which_katowice),], poviats[141:145,]))
+system.time(distances_multipoint<-st_distance(st_cast(poviats[c( which_warszawa, which_bydgoszcz, which_katowice),], "MULTIPOINT"), poviats[141:145,]))
+
+distances_polygon - distances_multipoint
+
+st_intersects(x=poviats[c(which_warszawa, which_bydgoszcz, which_katowice),], y=poviats[148:152,])
+st_intersects(poviats[c(which_warszawa, which_bydgoszcz, which_katowice),], poviats_central[148:152,], sparse=FALSE)
+
+poviats_neighbou<-st_intersects(poviats, poviats)
+poviats_neighbou
+
+# Checking if the geometries of individual objects are identical
+st_equals(poviats[c(which_warszawa, which_bydgoszcz, which_katowice),], poviats[148:152,], sparse = FALSE)
+
+# Checking if geometries of individual objects are disjoint
+st_disjoint(poviats[c(which_warszawa, which_bydgoszcz, which_katowice),], poviats_central[148:152,], sparse = FALSE)
+
+# Checking if the geometries are touching (are tangent)
+st_touches(poviats[c(which_warszawa, which_bydgoszcz, which_katowice),], poviats_central[148:152,],  sparse = FALSE)
+
+# Checking if the geometry is located within a distance 
+# no greater than the value given as the argument dist (in meters)
+st_is_within_distance(poviats[c(which_warszawa, which_bydgoszcz, which_katowice),], poviats_central[148:152,], dist = 1000, sparse = TRUE)
+
+# Checking if the geometries of individual elements from the first object 
+# contain elements from the second object
+st_contains(poviats[c(which_warszawa, which_bydgoszcz, which_katowice),], poviats_central[148:152,],  sparse = FALSE)
+
+# Checking if the geometries of individual elements from the first object 
+# cover the elements from the second object
+st_covers(poviats[c(which_warszawa, which_bydgoszcz, which_katowice),], poviats_central [148:152,],  sparse = FALSE)
+
+# Checking if the geometries of individual elements from the first object 
+# are covered with elements from the second object
+st_covered_by(poviats_central[148:152,], poviats[c(which_warszawa, which_bydgoszcz, which_katowice),],  sparse = FALSE)
+
+#10.4.	Use the dplyr:: package functions
+
+library(dplyr)
+library(stringr)
+library(sf)
+
+areas<-st_read("data/registration_areas.shp")
+class(areas)
+glimpse(areas)
+dim(areas)
+head(areas) # first three only
+select(areas, jpt_kod_je, jpt_nazwa_, geometry) # selected columns
+select(obreby, jpt_kod_je:jpt_orga01)
+select(areas, starts_with("jpt")) 
+select(areas, ends_with("01"))
+select(areas, contains("wersja")) # "wersja" means version
+select(areas, matches("_.{3}_"))
+select(obreby, jpt_kod_je:jpt_orga01, ends_with("01"), matches("_.{3}_"))
+select(areas, -ends_with("01"), -matches("_.{3}_"))
+select(areas, jpt_kod_je, jpt_nazwa_)->areas
+filter(areas, str_detect(jpt_nazwa_, "WARSZA"))
+filter(areas, str_detect(jpt_nazwa_, 'WARSZ'), str_sub(jpt_kod_je,1,2)=="14")
+areas<-mutate(areas, code_voi=str_sub(jpt_kod_je, 1, 2))
+
+names(areas)
+areas<-rename(areas, code_area = jpt_kod_je, name_area = jpt_nazwa_, code_voi= kod_woj)
+names(areas)
+nrow(areas)
+summarize(st_set_geometry(areas, NULL), n())
+summarize(st_set_geometry(areas, NULL), number=n())
+
+areas_voi<-group_by(st_set_geometry(areas, NULL), code_voi) 
+class(areas_voi)
+
+summarize(areas_voi, number=n()) # first 6 only
+arrange(summarize(areas_voi, number=n()), number) # first 6 only
+
+arrange(summarize(areas_voi, number=n()), desc(number)) # first 6 only
+areas_voi %>% summarize(number=n())%>%arrange(desc(number)) # first 6 only
+
+areas_voi %>% summarize(number=n()) %>% arrange(desc(number)) %>% .[["number"]] %>% hist()
+
+st_read("data/areas_registration.shp") %>% select(jpt_kod_je, jpt_nazwa_) %>% 
+mutate(code_voi=str_sub(jpt_kod_je, 1, 2)) %>% st_set_geometry(NULL) %>% 
+group_by(code_voi) %>% summarize(number=n()) %>% arrange(desc(number)) 
+
+areas %>% mutate(area=st_area(.)) %>% st_set_geometry(NULL) %>% 
+group_by(code_voi) %>% summarise(area=sum(as.numeric(area))/1e6) # 1-6 only
+
+areas %>% mutate(area=st_area(.)) %>% aggregate(area~code_voi, data=., FUN=sum, on.rm=TRUE) # First 6 only
+
+areas %>% filter(str_detect(code_area, "1465")) %>% ggplot() + geom_sf() + theme_bw()
+
+#10.5.	Sample analysis of large raster data
+#10.5.1. Measurement of economic inequalities from space
+
+library(rgdal)
+library(rgeos)
+library(dplyr)
+library(readr)
+library(raster)
+library(pryr)
+library(tabularaster)
+
+#10.5.2. Analysis using the raster:: package functions
+
+data_raster<-raster("data/F182013.v4c_web.cf_cvg_PART.tif")
+inMemory(data_raster)
+plot(data_raster)
+print(data_raster)
+
+data_raster@ncols
+data_raster@nrows
+ncol(data_raster) 
+nrow(data_raster)
+ncell(data_raster)
+dim(data_raster)
+
+nlayers(data_raster)
+data_raster[1111, 9999]
+data_raster[1e6]
+
+compareRaster(data_raster, data_raster, data_raster)
+
+data_raster_3layers<-stack(data_raster, data_raster, data_raster) 
+names(data_raster_3layers)=c("layer1", "layer2", "layer3")
+
+class(data_raster_3layers)
+data_raster_3layers
+
+raster::subset(data_raster_3layers, "layer1")
+
+data_raster_3layers[["layer2"]]
+
+data_raster_3layers$layer3
+
+mapa_voi<-st_read(dsn="data/voivodeships.shp")
+
+crs(data_raster)
+crs(mapa_voi)
+mapa_voi<-st_transform(mapa_voi, crs(data_raster)@projargs)
+mapa_voi<-mapa_voi %>% dplyr::select(jpt_kod_je, jpt_nazwa_, jpt_area)
+
+extent(data_raster)  # Checking the spatial extent of the analysed raster data
+extent(map_voi) # checking a set with a map of Polish regions:
+
+data_raster_PL<-crop(data_raster, extent(map_voi)) # crop range
+writeRaster(data_raster_PL, filename="data_raster_PL.tif", overwrite=TRUE)
+plot(data_raster_PL)
+plot(st_geometry(map_voi), add=TRUE)
+
+data_raster_PL<-mask(data_raster_PL, mask = map_voi)
+plot(data_raster_PL)
+plot(st_geometry(map_voi), add = TRUE)
+
+ncell(data_raster_PL[!is.na(data_raster_PL)])
+map_voi$jpt_kod_je
+map_voi<-map_voi %>% arrange(jpt_kod_je) 
+
+system.time(data_raster_PL_voi<-raster::extract(data_raster_PL, map_voi))
+class(data_raster_PL_voi)
+str(data_raster_PL_voi)
+
+lights_voi<-sapply(data_raster_PL_voi, sum, na.rm = TRUE)
+print(lights_voi)
+
+system.time({ cell<-cellnumbers(data_raster_PL, map_voi)
+str(cell)
+cell %>% mutate(light=raster::extract(data_raster_PL, cell$cell_)) %>% group_by(object_) %>% summarise(lights=sum(light, na.rm = TRUE)) -> lights_voi2})
+
+identical(lights_voi, lights_voi2$lights)
+
+dataCSO<-read_csv("lights_data/dataCSO.csv")
+head(dataCSO)
+
+map_voi$jpt_kod_je %>% as.character() %>% as.numeric() %>% identical(dataCSO$voiid)
+
+dataCSO$lights2013 <- lights_voi2$lights
+dataCSO %>% dplyr::select(ends_with("2013")) %>% cor() 
+
+#10.5.3. Other functions of the raster:: package
+
+summary(data_raster_PL) # summary of object created before
+cellStats(stack(data_raster_PL), mean, na.rm = TRUE)
+cellStats(stack(data_raster_PL), sd, na.rm = TRUE)
+summary(data_raster_3layers) # applying function on more than one layer
+
+cv <- function(x, na.rm) 100 * sd(x, na.rm=na.rm) / mean(x, na.rm=na.rm)
+cellStats(data_raster_PL, cv, na.rm = TRUE)
+
+table(getValues(data_raster_PL))
+
+#10.5.4. Potential alternative – stars:: package 
