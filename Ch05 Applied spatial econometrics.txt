@@ -16,15 +16,15 @@
 #5.2.1 Estimation
 
 #eq1<-average salary (Poland=100) ~ 
-+ population_in_production_age_to_post_production_age 
-+ number_of_firms_to_population_in_production_age
-+ per_capita_public_investment(Poland=100) 
-+ share_of_employment_in_services 
-+ share_of_employment_in_agriculture
-+ share_of_employed_to_population 
-+ distance 
-+ population_density(Poland=100) 
-+ unemployment rate
+#+ population_in_production_age_to_post_production_age 
+#+ number_of_firms_to_population_in_production_age
+#+ per_capita_public_investment(Poland=100) 
+#+ share_of_employment_in_services 
+#+ share_of_employment_in_agriculture
+#+ share_of_employed_to_population 
+#+ distance 
+#+ population_density(Poland=100) 
+#+ unemployment rate
 
 #eq1<-XA14 ~ XA08/XA09 + XA13 + (XA05/XA06)/mean(XA05/XA06) + (XA18+XA19+XA20)/XA15 + XA16/XA15 + XA15/XA06 + dist + XA10/mean(XA10) + XA21
 

@@ -75,21 +75,23 @@ points(crds, pch=21, bg="red", cex=0.8)
 # label preparation and coordinate for the provincial map
 crds.voi<-coordinates(voi)
 voi.df<-as.data.frame(voi)
+voi.df$jpt_nazwa_ <- iconv(voi.df$jpt_nazwa_, "CP1250", "UTF-8")
 par(mar=c(1,1,1,1))
 
 # signing regions in an optimized way
 plot(voi) #Fig.2.2b
-pointLabel(crds.voi, as.character(voi.df$jpt_nazwa_), cex=0.6)
+car::pointLabel(crds.voi, as.character(voi.df$jpt_nazwa_), cex=0.6)
 
 # signing regions in a simple way
 plot(voi)
 text(crds.voi, as.character(voi.df$jpt_nazwa_), cex=0.6)
 par(mar=c(5,4,4,2))
 
+pov.df$jpt_nazwa_ <- iconv(pov.df$jpt_nazwa_, "CP1250", "UTF-8")
 # interactive edition of the names of regions
 plot(pov, border="grey80")
-a<-identify(crds, labels=as.character(pov.df$jpt_nazwa_))
-data[a,c(3,13:15)]
+#a<-identify(crds, labels=as.character(pov.df$jpt_nazwa_))
+#data[a,c(3,13:15)]
 
 bb<-bbox(pov)
 bb
@@ -398,6 +400,7 @@ par(mar=c(5,4,4,2))
 # labels of provincial names
 crds.voi<-coordinates(voi)
 voi.df<-as.data.frame(voi)
+voi.df$jpt_nazwa_ <- iconv(voi.df$jpt_nazwa_, "CP1250", "UTF-8")
 text(crds.voi, label=voi.df$jpt_nazwa_, cex=0.7, font=2)
 
 variable<-data$region_nr[data$year==2015]
@@ -431,12 +434,13 @@ title(main="Unemployment rate in poviats in 2015")
 #Scheme 5 - with spplot() from the sp:: package
 
 # data preparation - aggregation and merging
-data15.lim<-data[data$year==2015, c(12,21,25)] 
+#data15.lim<-data[data$year==2015, c(12,21,25)] 
+data15.lim<-data[data$year==2015, c(7,26,32)] 
 XA15.agg<-aggregate(data15.lim$XA15, by=list(data15.lim$region_name), sum, na.rm=TRUE)
 XA21.agg<-aggregate(data15.lim$XA21, by=list(data15.lim$region_name), mean, na.rm=TRUE)
 data.agg<-cbind(XA15.agg, XA21.agg$x)
 colnames(data.agg)<-c("voi", "XA15", "XA21")
-data.agg$voi<-tolower(data.agg$voi) # changing the size of letters to small
+data.agg$voi<-tolower(iconv(data.agg$voi, "CP1250", "UTF-8")) # changing the size of letters to small
 
 # combining data with identifiers from the map
 order<-data.frame(order=voi@data[,6]) # order of regions from the map
@@ -480,6 +484,7 @@ spplot(firms.lim1) # Fig.2.9a
 
 firms.lim1<-firms[,c("SEC_PKD7", "coords.x1", "coords.x2")]
 coordinates(firms.lim1)<-c("coords.x1","coords.x2") # class change
+firms.lim1$SEC_PKD7 <- factor(firms.lim1$SEC_PKD7)
 spplot(firms.lim1, key.space="left") # Fig.2.9b
 
 # selected variables: x and y coordinates, employment, sector
@@ -517,7 +522,7 @@ bg=cols[findInterval(variable, brks)])
 legend("bottomleft", legend=brks, fill=cols, cex=0.8, bty="n")
 title(main="Points - colors by values")
 
-savePlot(filename="locations and random values", type="jpg")
+savePlot(filename="locations and random values", type="jpeg")
 
 variable<-data$XA14[data$year==2015]
 summary(variable)
@@ -533,7 +538,7 @@ cex=size[findInterval(variable, brks)], pch=21, bg=cols[findInterval(variable, b
 legend("bottomleft", legend=brks, pt.bg=cols, pt.cex=size, bty="n", pch=21)
 title(main="Average salary in Poland = 100% year 2015",
 sub="In the legend, the interval from …")
-savePlot(filename="Average salary", type="jpg")
+savePlot(filename="Average salary", type="jpeg")
 
 data15<-data[data$year==2015,]
 data.lub<-data[data$region_name=="Lubelskie",]
@@ -667,25 +672,25 @@ ct<-crosstab(r1, r2)
 head(ct)
 
 # raster and graph of significant differences
-library(SDMTools)
-out<-SigDiff(r1,r2, pattern=FALSE)
-out.val<-extract(out, 1:ncell(out))
+#library(SDMTools) # archived in 2019
+#out<-SigDiff(r1,r2, pattern=FALSE)
+#out.val<-extract(out, 1:ncell(out))
 
 proj.map<-crs(pov.Lublin) # explore the map projection
-proj.raster<-crs(out) # examination of the raster projection
-crs(out)<-proj.map # change of raster projection to map projection
+#proj.raster<-crs(out) # examination of the raster projection
+#crs(out)<-proj.map # change of raster projection to map projection
 
 # figure based on ImageDiff()
 plot(pov.Lublin) # Fig.2.13a
-ImageDiff(out, main="Pattern Differences", axes=FALSE, 
-tcol=c("indianred1","cornsilk2","palegreen1"), add=TRUE) 
+#ImageDiff(out, main="Pattern Differences", axes=FALSE, 
+#tcol=c("indianred1","cornsilk2","palegreen1"), add=TRUE) 
 
 legend('bottomright', title='significance', 
 legend=c('lower','greater','not significant'), fill=c("indianred1","palegreen1","cornsilk2"),bg='white', bty='n')
 
 # figure based on plot()
 plot(pov.Lublin)
-plot(out, add=TRUE)
+#plot(out, add=TRUE)
 cols<- rev(terrain.colors(12))
 legend('bottomright', title='significance', 
 legend=c('lower', 'not significant', 'greater'), fill=c(cols[1], cols[6], cols[12]), bg='white', bty='n', cex=0.8)
@@ -749,39 +754,39 @@ plot(lub.voi) # grid is narrowed to the region border
 plot(grid.limited, add=TRUE)
 
 # reading grid for population and conversion of projection
-pop<-readOGR(".", "PD_STAT_GRID_CELL_2011")
-pop<-spTransform(pop, CRS("+proj=longlat +datum=NAD83"))
+#pop<-readOGR(".", "PD_STAT_GRID_CELL_2011")
+#pop<-spTransform(pop, CRS("+proj=longlat +datum=NAD83"))
 
-pop.df<-as.data.frame(pop) # extracting the data to the data.frame object
-head(pop.df)
-pop.grid<-as(pop, "SpatialPolygons") # separation of grid
+#pop.df<-as.data.frame(pop) # extracting the data to the data.frame object
+#head(pop.df)
+#pop.grid<-as(pop, "SpatialPolygons") # separation of grid
 
-str(pop) # checking the structure of slots and sockets
-summary(pop@data$FEM_RATIO) # summary of the selected variable
+#str(pop) # checking the structure of slots and sockets
+#summary(pop@data$FEM_RATIO) # summary of the selected variable
 
 # conversion to the numerical data of subsequent columns of the data set
-for(i in 1:15){ # does not work for all variables
-pop.df[,i]<-as.numeric(levels(pop.df[,i]))[pop.df[,1]]}
+#for(i in 1:15){ # does not work for all variables
+#pop.df[,i]<-as.numeric(levels(pop.df[,i]))[pop.df[,1]]}
 
 # cutting the contour map
-pov.lub<-pov[pov@data$jpt_nazwa_=="powiat Lublin",]
+#pov.lub<-pov[pov@data$jpt_nazwa_=="powiat Lublin",]
 
-lim<-over(pop.grid, pov.lub) # limitid wider grid with narrow contour map
-head(lim[,1:7]) # data.frame class object
-a<-which(lim$jpt_nazwa_=="powiat Lublin") # rows fulfilling the condition
-head(lim[a,1:7])
+#lim<-over(pop.grid, pov.lub) # limitid wider grid with narrow contour map
+#head(lim[,1:7]) # data.frame class object
+#a<-which(lim$jpt_nazwa_=="powiat Lublin") # rows fulfilling the condition
+#head(lim[a,1:7])
 
 # conditional grid and data.frame restriction on the selected site
-pop.grid.lub<-pop.grid[lim$jpt_nazwa_=="powiat Lublin", ]
-pop.df.lub<-pop.df[a, ]
+#pop.grid.lub<-pop.grid[lim$jpt_nazwa_=="powiat Lublin", ]
+#pop.df.lub<-pop.df[a, ]
 
 # administrative contour and grid
-plot(pop.grid.lub)
-plot(pov.lub, add=TRUE)
+#plot(pop.grid.lub)
+#plot(pov.lub, add=TRUE)
 
-library(GISTools)
-choropleth(pop.grid.lub, pop.df.lub$TOT) # grid with colour layer
-plot(pov.lub, add=TRUE)
+#library(GISTools)
+#choropleth(pop.grid.lub, pop.df.lub$TOT) # grid with colour layer
+#plot(pov.lub, add=TRUE)
 
 library(raster)
 names(firms)
@@ -791,79 +796,79 @@ firms.sel<-firms[,c(12,13,20,18)]
 colnames(firms.sel)<-c("x","y","empl","sector") # change of names
 coordinates(firms.sel)<-c("x","y") # changing object class
 
-pop.grid.lub$ID<-rownames(pop.df.lub) # identifier of units in the grid
-pop.df.lub$ID<-rownames(pop.df.lub) # identifier of units in data.frame
-crs(firms.sel)<-crs(pop.grid.lub) # agreeing the projections
+#pop.grid.lub$ID<-rownames(pop.df.lub) # identifier of units in the grid
+#pop.df.lub$ID<-rownames(pop.df.lub) # identifier of units in data.frame
+#crs(firms.sel)<-crs(pop.grid.lub) # agreeing the projections
 
 # assigning grid ID to firms
-firms.sel$ID<-over(firms.sel, pop.grid.lub) 
-head(firms.sel)
-summary(firms.sel)
+#firms.sel$ID<-over(firms.sel, pop.grid.lub) 
+#head(firms.sel)
+#summary(firms.sel)
 
-crds<-coordinates(pop.grid.lub) 	# grid cell centroids
-plot(pop.grid.lub)			# grid chart
+#crds<-coordinates(pop.grid.lub) 	# grid cell centroids
+#plot(pop.grid.lub)			# grid chart
 #text(crds, labels=pop.grid.lub$ID, cex=0.4)
-library(maptools)
-pointLabel(crds, labels=pop.grid.lub$ID, cex=0.4)
+#library(maptools)
+#pointLabel(crds, labels=pop.grid.lub$ID, cex=0.4)
 
 # change of the object's class
-firms.sel.df<-as.data.frame(firms.sel)
-head(firms.sel.df)
+#firms.sel.df<-as.data.frame(firms.sel)
+#head(firms.sel.df)
 
 # aggregation of point data according to the ID of the grid set 
 # statistics - the number of observations and the total employment
-firms.agg.no<-aggregate(firms.sel.df$ID, by=list(firms.sel.df$ID), length)
-firms.agg.sum<-aggregate(firms.sel.df$empl, by=list(firms.sel.df$ID), sum)
-head(firms.agg.no)
+#firms.agg.no<-aggregate(firms.sel.df$ID, by=list(firms.sel.df$ID), length)
+#firms.agg.sum<-aggregate(firms.sel.df$empl, by=list(firms.sel.df$ID), sum)
+#head(firms.agg.no)
 
 # combining files by merge()
-pop.df.lub.m<-merge(pop.df.lub, firms.agg.no, by.x="ID", by.y="Group.1", all.x=TRUE)
-pop.df.lub.m<-merge(pop.df.lub.m, firms.agg.sum, by.x="ID", by.y="Group.1", all.x=TRUE)
+#pop.df.lub.m<-merge(pop.df.lub, firms.agg.no, by.x="ID", by.y="Group.1", all.x=TRUE)
+#pop.df.lub.m<-merge(pop.df.lub.m, firms.agg.sum, by.x="ID", by.y="Group.1", all.x=TRUE)
 
-names(pop.df.lub.m)
+#names(pop.df.lub.m)
 
-m1<-which(is.na(pop.df.lub.m$x.x))
-pop.df.lub.m$x.x[m1]<-0
-choropleth(pop.grid.lub, pop.df.lub.m$x.x) # number of firms
-title(main="The number of firms in the grid")
-shades<-auto.shading(pop.df.lub.m$x.x)
-choro.legend(22.65, 51.2, shades, cex=0.65, bty="n")
+#m1<-which(is.na(pop.df.lub.m$x.x))
+#pop.df.lub.m$x.x[m1]<-0
+#choropleth(pop.grid.lub, pop.df.lub.m$x.x) # number of firms
+#title(main="The number of firms in the grid")
+#shades<-auto.shading(pop.df.lub.m$x.x)
+#choro.legend(22.65, 51.2, shades, cex=0.65, bty="n")
 
-m2<-which(is.na(pop.df.lub.m$x.y))
-pop.df.lub.m$x.y[m2]<-0
-choropleth(pop.grid.lub, pop.df.lub.m$x.y) # total employment 
-title(main="Total employment in firms in the grid ")
-shades<-auto.shading(pop.df.lub.m$x.y)
-choro.legend(22.65, 51.2, shades, cex=0.65, bty="n")
+#m2<-which(is.na(pop.df.lub.m$x.y))
+#pop.df.lub.m$x.y[m2]<-0
+#choropleth(pop.grid.lub, pop.df.lub.m$x.y) # total employment 
+#title(main="Total employment in firms in the grid ")
+#shades<-auto.shading(pop.df.lub.m$x.y)
+#choro.legend(22.65, 51.2, shades, cex=0.65, bty="n")
 
-levels(firms.sel$sector)
-head(firms.sel)
-sectors<-LETTERS[seq(from=1, to=19)]
-sectors
+#levels(firms.sel$sector)
+#head(firms.sel)
+#sectors<-LETTERS[seq(from=1, to=19)]
+#sectors
 
-for(i in 1:19){
-sub<-firms.sel.df[firms.sel.df$sector==sectors[i],]
-sub.agg<-aggregate(sub$ID, by=list(sub$ID), length)
-pop.df.lub.m<-merge(pop.df.lub.m, sub.agg, by.x="ID", by.y="Group.1", all.x=TRUE)
-colnames(pop.df.lub.m)[19+i]<-paste("Sector", sectors[i], sep="_")}
+#for(i in 1:19){
+#sub<-firms.sel.df[firms.sel.df$sector==sectors[i],]
+#sub.agg<-aggregate(sub$ID, by=list(sub$ID), length)
+#pop.df.lub.m<-merge(pop.df.lub.m, sub.agg, by.x="ID", by.y="Group.1", all.x=TRUE)
+#colnames(pop.df.lub.m)[19+i]<-paste("Sector", sectors[i], sep="_")}
 
-pop.df.lub.m$count<-(19-rowSums(is.na(pop.df.lub.m[,20:38])))
-head(pop.df.lub.m)[,20:39]
+#pop.df.lub.m$count<-(19-rowSums(is.na(pop.df.lub.m[,20:38])))
+#head(pop.df.lub.m)[,20:39]
 
-library(classInt)
-variable<-pop.df.lub.m$count
-compartments<-9
-colors<-brewer.pal(9, "BuPu") # choice of colors
-classes<-classIntervals(variable, compartments, style="fixed", 
-fixedBreaks=c(0, 2, 4, 6, 8, 10, 12, 14, 16, 18))
-table.colors<-findColours(classes, colors) 
+#library(classInt)
+#variable<-pop.df.lub.m$count
+#compartments<-9
+#colors<-brewer.pal(9, "BuPu") # choice of colors
+#classes<-classIntervals(variable, compartments, style="fixed", 
+#fixedBreaks=c(0, 2, 4, 6, 8, 10, 12, 14, 16, 18))
+#table.colors<-findColours(classes, colors) 
 
-plot(pop.grid.lub, col= table.colors) #Fig.2.14b
-plot(pov.lub, add=TRUE)
+#plot(pop.grid.lub, col= table.colors) #Fig.2.14b
+#plot(pov.lub, add=TRUE)
 
-legend("bottomleft", legend=names(attr(table.colors, "table")), fill=attr(table.colors, "palette"), cex=0.8, bty="n")
-title(main="The number of sectors represented by firms
-within grid")
+#legend("bottomleft", legend=names(attr(table.colors, "table")), fill=attr(table.colors, "palette"), cex=0.8, bty="n")
+#title(main="The number of sectors represented by firms
+#within grid")
 
 #2.8 Spatial geometries
 
