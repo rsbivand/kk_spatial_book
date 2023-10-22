@@ -1,3 +1,7 @@
+zz <- file("ch2_script_output.Rout", open="wb")
+options(warn=1)
+sink(zz)
+sink(zz, type = "message")
 ##############################################
 #Applied Spatial Statistics and Econometrics: Data Analysis in R (Routledge, 2020) 
 #Przestrzenne metody ilościowe w R: statystyka, ekonometria, uczenie maszynowe, analiza danych (CeDeWu, 2020)
@@ -17,14 +21,14 @@ library(rgdal)
 library(sp)
 
 # loading shapefile files
-pl<-readOGR(".", "Panstwo") # 1 unit 
-voi<-readOGR(".", "wojewodztwa") # 16 units 
-pov<-readOGR(".", "powiaty") # 380 units 
+pl<-readOGR(".", "Panstwo", stringsAsFactors=TRUE, integer64="allow.loss") # 1 unit 
+voi<-readOGR(".", "wojewodztwa", stringsAsFactors=TRUE, integer64="allow.loss") # 16 units 
+pov<-readOGR(".", "powiaty", stringsAsFactors=TRUE, integer64="allow.loss") # 380 units 
 
 # change of projection
-pov<-spTransform(pov, CRS("+proj=longlat +datum=NAD83"))
-voi<-spTransform(voi, CRS("+proj=longlat +datum=NAD83"))
-pl<-spTransform(pl, CRS("+proj=longlat +datum=NAD83"))
+pov<-spTransform(pov, CRS("OGC:CRS84"))
+voi<-spTransform(voi, CRS("OGC:CRS84"))
+pl<-spTransform(pl, CRS("OGC:CRS84"))
 
 class(pov)
 
@@ -547,9 +551,9 @@ data.lub$poviat_name1
 pov.sel<-pov[data15$poviat_name1=="Powiat Lublin",]
 firms.sp<-firms
 coordinates(firms.sp)<-c("coords.x1","coords.x2") # class change
-proj4string(firms.sp)<-CRS("+proj=longlat +datum=NAD83")
-pov.sel<-spTransform(pov.sel, CRS("+proj=longlat +datum=NAD83"))
-firms.sp<-spTransform(firms.sp, CRS("+proj=longlat +datum=NAD83"))
+proj4string(firms.sp)<-CRS("OGC:CRS84")
+pov.sel<-spTransform(pov.sel, CRS("OGC:CRS84"))
+firms.sp<-spTransform(firms.sp, CRS("OGC:CRS84"))
 
 # method with over()
 locs.lim<-over(firms.sp, pov.sel)
@@ -725,8 +729,8 @@ summary(r1.df)
 #2.7 Basic operations on grids
 
 #loading fresh objects
-voi<-readOGR(".", "wojewodztwa") # 16 units. 
-voi<- spTransform(voi, CRS("+proj=longlat +datum=NAD83"))
+voi<-readOGR(".", "wojewodztwa", stringsAsFactors=TRUE, integer64="allow.loss") # 16 units. 
+voi<- spTransform(voi, CRS("OGC:CRS84"))
 
 # creation of a map section - voivodeship (NTS2) Lubelskie
 voi.df<-as.data.frame(voi) 
@@ -754,39 +758,39 @@ plot(lub.voi) # grid is narrowed to the region border
 plot(grid.limited, add=TRUE)
 
 # reading grid for population and conversion of projection
-#pop<-readOGR(".", "PD_STAT_GRID_CELL_2011")
-#pop<-spTransform(pop, CRS("+proj=longlat +datum=NAD83"))
+pop<-readOGR(".", "PD_STAT_GRID_CELL_2011", stringsAsFactors=TRUE, integer64="allow.loss")
+pop<-spTransform(pop, CRS("OGC:CRS84"))
 
-#pop.df<-as.data.frame(pop) # extracting the data to the data.frame object
-#head(pop.df)
-#pop.grid<-as(pop, "SpatialPolygons") # separation of grid
+pop.df<-as.data.frame(pop) # extracting the data to the data.frame object
+head(pop.df)
+pop.grid<-as(pop, "SpatialPolygons") # separation of grid
 
-#str(pop) # checking the structure of slots and sockets
-#summary(pop@data$FEM_RATIO) # summary of the selected variable
+str(pop) # checking the structure of slots and sockets
+summary(pop@data$FEM_RATIO) # summary of the selected variable
 
 # conversion to the numerical data of subsequent columns of the data set
 #for(i in 1:15){ # does not work for all variables
 #pop.df[,i]<-as.numeric(levels(pop.df[,i]))[pop.df[,1]]}
 
 # cutting the contour map
-#pov.lub<-pov[pov@data$jpt_nazwa_=="powiat Lublin",]
+pov.lub<-pov[pov@data$jpt_nazwa_=="powiat Lublin",]
 
-#lim<-over(pop.grid, pov.lub) # limitid wider grid with narrow contour map
-#head(lim[,1:7]) # data.frame class object
-#a<-which(lim$jpt_nazwa_=="powiat Lublin") # rows fulfilling the condition
-#head(lim[a,1:7])
+lim<-over(pop.grid, pov.lub) # limitid wider grid with narrow contour map
+head(lim[,1:7]) # data.frame class object
+a<-which(lim$jpt_nazwa_=="powiat Lublin") # rows fulfilling the condition
+head(lim[a,1:7])
 
 # conditional grid and data.frame restriction on the selected site
-#pop.grid.lub<-pop.grid[lim$jpt_nazwa_=="powiat Lublin", ]
-#pop.df.lub<-pop.df[a, ]
+pop.grid.lub<-pop.grid[lim$jpt_nazwa_=="powiat Lublin", ]
+pop.df.lub<-pop.df[a, ]
 
 # administrative contour and grid
-#plot(pop.grid.lub)
-#plot(pov.lub, add=TRUE)
+plot(pop.grid.lub)
+plot(pov.lub, add=TRUE)
 
-#library(GISTools)
-#choropleth(pop.grid.lub, pop.df.lub$TOT) # grid with colour layer
-#plot(pov.lub, add=TRUE)
+library(GISTools)
+choropleth(pop.grid.lub, pop.df.lub$TOT) # grid with colour layer
+plot(pov.lub, add=TRUE)
 
 library(raster)
 names(firms)
@@ -796,79 +800,79 @@ firms.sel<-firms[,c(12,13,20,18)]
 colnames(firms.sel)<-c("x","y","empl","sector") # change of names
 coordinates(firms.sel)<-c("x","y") # changing object class
 
-#pop.grid.lub$ID<-rownames(pop.df.lub) # identifier of units in the grid
-#pop.df.lub$ID<-rownames(pop.df.lub) # identifier of units in data.frame
-#crs(firms.sel)<-crs(pop.grid.lub) # agreeing the projections
+pop.grid.lub$ID<-rownames(pop.df.lub) # identifier of units in the grid
+pop.df.lub$ID<-rownames(pop.df.lub) # identifier of units in data.frame
+crs(firms.sel)<-crs(pop.grid.lub) # agreeing the projections
 
 # assigning grid ID to firms
-#firms.sel$ID<-over(firms.sel, pop.grid.lub) 
-#head(firms.sel)
-#summary(firms.sel)
+firms.sel$ID<-over(firms.sel, pop.grid.lub) 
+head(firms.sel)
+summary(firms.sel)
 
-#crds<-coordinates(pop.grid.lub) 	# grid cell centroids
-#plot(pop.grid.lub)			# grid chart
+crds<-coordinates(pop.grid.lub) 	# grid cell centroids
+plot(pop.grid.lub)			# grid chart
 #text(crds, labels=pop.grid.lub$ID, cex=0.4)
-#library(maptools)
-#pointLabel(crds, labels=pop.grid.lub$ID, cex=0.4)
+library(maptools)
+pointLabel(crds, labels=pop.grid.lub$ID, cex=0.4)
 
 # change of the object's class
-#firms.sel.df<-as.data.frame(firms.sel)
-#head(firms.sel.df)
+firms.sel.df<-as.data.frame(firms.sel)
+head(firms.sel.df)
 
 # aggregation of point data according to the ID of the grid set 
 # statistics - the number of observations and the total employment
-#firms.agg.no<-aggregate(firms.sel.df$ID, by=list(firms.sel.df$ID), length)
-#firms.agg.sum<-aggregate(firms.sel.df$empl, by=list(firms.sel.df$ID), sum)
-#head(firms.agg.no)
+firms.agg.no<-aggregate(firms.sel.df$ID, by=list(firms.sel.df$ID), length)
+firms.agg.sum<-aggregate(firms.sel.df$empl, by=list(firms.sel.df$ID), sum)
+head(firms.agg.no)
 
 # combining files by merge()
-#pop.df.lub.m<-merge(pop.df.lub, firms.agg.no, by.x="ID", by.y="Group.1", all.x=TRUE)
-#pop.df.lub.m<-merge(pop.df.lub.m, firms.agg.sum, by.x="ID", by.y="Group.1", all.x=TRUE)
+pop.df.lub.m<-merge(pop.df.lub, firms.agg.no, by.x="ID", by.y="Group.1", all.x=TRUE)
+pop.df.lub.m<-merge(pop.df.lub.m, firms.agg.sum, by.x="ID", by.y="Group.1", all.x=TRUE)
 
-#names(pop.df.lub.m)
+names(pop.df.lub.m)
 
-#m1<-which(is.na(pop.df.lub.m$x.x))
-#pop.df.lub.m$x.x[m1]<-0
-#choropleth(pop.grid.lub, pop.df.lub.m$x.x) # number of firms
-#title(main="The number of firms in the grid")
-#shades<-auto.shading(pop.df.lub.m$x.x)
-#choro.legend(22.65, 51.2, shades, cex=0.65, bty="n")
+m1<-which(is.na(pop.df.lub.m$x.x))
+pop.df.lub.m$x.x[m1]<-0
+choropleth(pop.grid.lub, pop.df.lub.m$x.x) # number of firms
+title(main="The number of firms in the grid")
+shades<-auto.shading(pop.df.lub.m$x.x)
+choro.legend(22.65, 51.2, shades, cex=0.65, bty="n")
 
-#m2<-which(is.na(pop.df.lub.m$x.y))
-#pop.df.lub.m$x.y[m2]<-0
-#choropleth(pop.grid.lub, pop.df.lub.m$x.y) # total employment 
-#title(main="Total employment in firms in the grid ")
-#shades<-auto.shading(pop.df.lub.m$x.y)
-#choro.legend(22.65, 51.2, shades, cex=0.65, bty="n")
+m2<-which(is.na(pop.df.lub.m$x.y))
+pop.df.lub.m$x.y[m2]<-0
+choropleth(pop.grid.lub, pop.df.lub.m$x.y) # total employment 
+title(main="Total employment in firms in the grid ")
+shades<-auto.shading(pop.df.lub.m$x.y)
+choro.legend(22.65, 51.2, shades, cex=0.65, bty="n")
 
-#levels(firms.sel$sector)
-#head(firms.sel)
-#sectors<-LETTERS[seq(from=1, to=19)]
-#sectors
+levels(firms.sel$sector)
+head(firms.sel)
+sectors<-LETTERS[seq(from=1, to=19)]
+sectors
 
-#for(i in 1:19){
-#sub<-firms.sel.df[firms.sel.df$sector==sectors[i],]
-#sub.agg<-aggregate(sub$ID, by=list(sub$ID), length)
-#pop.df.lub.m<-merge(pop.df.lub.m, sub.agg, by.x="ID", by.y="Group.1", all.x=TRUE)
-#colnames(pop.df.lub.m)[19+i]<-paste("Sector", sectors[i], sep="_")}
+for(i in 1:19){
+sub<-firms.sel.df[firms.sel.df$sector==sectors[i],]
+sub.agg<-aggregate(sub$ID, by=list(sub$ID), length)
+pop.df.lub.m<-merge(pop.df.lub.m, sub.agg, by.x="ID", by.y="Group.1", all.x=TRUE)
+colnames(pop.df.lub.m)[19+i]<-paste("Sector", sectors[i], sep="_")}
 
-#pop.df.lub.m$count<-(19-rowSums(is.na(pop.df.lub.m[,20:38])))
-#head(pop.df.lub.m)[,20:39]
+pop.df.lub.m$count<-(19-rowSums(is.na(pop.df.lub.m[,20:38])))
+head(pop.df.lub.m)[,20:39]
 
-#library(classInt)
-#variable<-pop.df.lub.m$count
-#compartments<-9
-#colors<-brewer.pal(9, "BuPu") # choice of colors
-#classes<-classIntervals(variable, compartments, style="fixed", 
-#fixedBreaks=c(0, 2, 4, 6, 8, 10, 12, 14, 16, 18))
-#table.colors<-findColours(classes, colors) 
+library(classInt)
+variable<-pop.df.lub.m$count
+compartments<-9
+colors<-brewer.pal(9, "BuPu") # choice of colors
+classes<-classIntervals(variable, compartments, style="fixed", 
+fixedBreaks=c(0, 2, 4, 6, 8, 10, 12, 14, 16, 18))
+table.colors<-findColours(classes, colors) 
 
-#plot(pop.grid.lub, col= table.colors) #Fig.2.14b
-#plot(pov.lub, add=TRUE)
+plot(pop.grid.lub, col= table.colors) #Fig.2.14b
+plot(pov.lub, add=TRUE)
 
-#legend("bottomleft", legend=names(attr(table.colors, "table")), fill=attr(table.colors, "palette"), cex=0.8, bty="n")
-#title(main="The number of sectors represented by firms
-#within grid")
+legend("bottomleft", legend=names(attr(table.colors, "table")), fill=attr(table.colors, "palette"), cex=0.8, bty="n")
+title(main="The number of sectors represented by firms
+within grid")
 
 #2.8 Spatial geometries
 
@@ -906,7 +910,7 @@ firms.sp<-firms.sel
 coordinates(firms.sp)<-c("x","y")
 projection<-"+proj=longlat +datum=WGS84"
 proj4string(firms.sp)<-projection
-firms.sp<-spTransform(firms.sp, CRS("+proj=longlat +datum=NAD83"))
+firms.sp<-spTransform(firms.sp, CRS("OGC:CRS84"))
 
 # creating circles and checking the affiliation of points to a circle
 imax<-2000 # for 2000 observations
@@ -914,8 +918,8 @@ firms.sel[,5]<-NA # creating an empty column
 library(rgeos)
 for(i in 1:imax){
 ring<-gBuffer(xy.sp[i,], quadsegs=50, byid=TRUE, width=0.1) 
-proj4string(ring)<-CRS("+proj=longlat +datum=NAD83")
-ring<-spTransform(ring, CRS("+proj=longlat +datum=NAD83"))
+proj4string(ring)<-CRS("OGC:CRS84")
+ring<-spTransform(ring, CRS("OGC:CRS84"))
 firms.sel[,i+5]<-over(firms.sp, ring) # checking the affiliation
 firms.sel[i,5]<-sum(firms.sel$empl*firms.sel[,i+5], na.rm=TRUE) / sum(firms.sel[,i+5], na.rm=TRUE) # average population of neighbors 
 }
@@ -933,13 +937,14 @@ coordinates(firms.sel1)<-c("x","y") # change of class
 
 spplot(firms.sel1, key.space="bottom", sp.layout=list(voi[voi@data$jpt_nazwa_=="lubelskie",], col='grey'))
 
-pov<-readOGR(".", "powiaty") # 16 units. 
-pov<- spTransform(pov, CRS("+proj=longlat +datum=NAD83"))
+pov<-readOGR(".", "powiaty", stringsAsFactors=TRUE, integer64="allow.loss") # 16 units. 
+pov<- spTransform(pov, CRS("OGC:CRS84"))
 
 pov.lub<-pov[pov@data$jpt_nazwa_=="powiat Lublin",]
 point.lub<-spsample(pov.lub, 100, type="random")
 
 radius<-rnorm(100, mean=0.007, sd=0.003)
+radius[radius < 0] <- 0
 xy<-cbind(point.lub@coords[,1], point.lub@coords[,2]) 
 xy.sp<-SpatialPoints(xy) # required for gBuffer
 circles<-gBuffer(xy.sp, quadsegs=50, byid=TRUE, width=radius)
@@ -956,4 +961,6 @@ plot(circles.union, add=TRUE)
 gArea(circles)
 gArea(circles.union)
 gArea(pov.lub)
-
+sessionInfo()
+sink(type = "message")
+sink()
