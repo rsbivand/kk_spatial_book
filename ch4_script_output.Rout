@@ -1,0 +1,4361 @@
+
+> sink(zz, type = "message")##############################################
+
+> #Applied Spatial Statistics and Econometrics: Data Analysis in R (Routledge, 2020) 
+> #Przestrzenne metody ilościowe w R: statystyka, ekonometria, u .... [TRUNCATED] 
+
+> library(spdep)
+
+> # poviat map
+> pov<-readOGR(".", "powiaty", stringsAsFactors=TRUE) # 380 units 
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+OGR data source with driver: ESRI Shapefile 
+Source: "/home/rsb/presentations/kk_spatial_book", layer: "powiaty"
+with 380 features
+It has 29 fields
+
+> pov<-spTransform(pov, CRS("+proj=longlat +datum=NAD83"))
+Warning: PROJ support is provided by the sf and terra packages among others
+
+> # matrix of weights according to the contiguity criterion
+> cont.sp<-as(pov, "SpatialPolygons") # conversion of polygons to class sp
+
+> cont.nb<-poly2nb(cont.sp, queen=T) # conversion of sp to class nb
+
+> # creation of weight matrix standardised by lines up to 1 (option W)
+> cont.listw<-nb2listw(cont.nb, style="W") 
+
+> cont.listw # displays a summary of the weight matrix
+Characteristics of weights list object:
+Neighbour list object:
+Number of regions: 380 
+Number of nonzero links: 2006 
+Percentage nonzero weights: 1.4 
+Average number of links: 5.3 
+
+Weights style: W 
+Weights constants summary:
+    n     nn  S0  S1   S2
+W 380 144400 380 170 1632
+
+> # poviats’ coordinates of measures
+> crds.pov<-coordinates(pov)
+
+> colnames(crds.pov)<-c("cx", "cy")
+
+> plot(pov) # contour map Fig.4.2a
+
+> plot(cont.nb, crds.pov, add=TRUE) # neighbourly layer
+
+> # conversion to matrix class
+> cont.mat<-nb2mat(cont.nb)
+
+> cont.mat[1:5, 1:5]
+  [,1] [,2] [,3] [,4] [,5]
+0  0.0 0.00 0.00  0.0 0.17
+1  0.0 0.00 0.14  0.0 0.14
+2  0.0 0.14 0.00  0.0 0.14
+3  0.0 0.00 0.00  0.0 0.20
+4  0.1 0.10 0.10  0.1 0.00
+
+> voi<-readOGR(".", "wojewodztwa", stringsAsFactors=TRUE) # 16 units 
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+OGR data source with driver: ESRI Shapefile 
+Source: "/home/rsb/presentations/kk_spatial_book", layer: "wojewodztwa"
+with 16 features
+It has 29 fields
+
+> voi<-spTransform(voi, CRS("+proj=longlat +datum=NAD83"))
+Warning: PROJ support is provided by the sf and terra packages among others
+
+> names_voi<-as.character(voi$jpt_nazwa_) # region names vector
+
+> names_voi
+ [1] "opolskie"               "\x9cwi\xeatokrzyskie"   "kujawsko-pomorskie"    
+ [4] "mazowieckie"            "pomorskie"              "\x9cl\xb9skie"         
+ [7] "warmi\xf1sko-mazurskie" "zachodniopomorskie"     "dolno\x9cl\xb9skie"    
+[10] "wielkopolskie"          "\xb3\xf3dzkie"          "podlaskie"             
+[13] "ma\xb3opolskie"         "lubuskie"               "podkarpackie"          
+[16] "lubelskie"             
+
+> cont.voi.nb<-poly2nb(as(voi, "SpatialPolygons"), row.names=names_voi)
+
+> cont.voi.mat<-nb2mat(cont.voi.nb) # conversion to matrix class
+
+> cont.voi.mat[1:5, 1:5]
+                     [,1] [,2] [,3] [,4] [,5]
+opolskie                0 0.00 0.00 0.00  0.0
+\x9cwi\xeatokrzyskie    0 0.00 0.00 0.17  0.0
+kujawsko-pomorskie      0 0.00 0.00 0.20  0.2
+mazowieckie             0 0.17 0.17 0.00  0.0
+pomorskie               0 0.00 0.25 0.00  0.0
+
+> names_voi[cont.voi.nb[[which(names_voi=="lubuskie")]]]
+[1] "zachodniopomorskie" "dolno\x9cl\xb9skie" "wielkopolskie"     
+
+> #4.2.4 Matrix of k nearest neighbours (knn)
+> 
+> crds.voi<-coordinates(voi) # centroids of NTS 2 voivodeships
+
+> head(crds.voi)
+  [,1] [,2]
+0   18   51
+1   21   51
+2   18   53
+3   21   52
+4   18   54
+5   19   50
+
+> # matrix k=5 nearest neighbours for area data
+> voi.knn<-knearneigh(crds.voi, k=5) # a knn object is created
+
+> voi.knn.nb<- knn2nb(voi.knn) 
+
+> #Fig.4.2b – connections of k nearest neighbours
+> plot(voi, main="K nearest neighbours, k=5")	# regional outline
+
+> plot(voi.knn.nb, crds.voi, add=TRUE) # relationship layer
+
+> # checking the symmetry of the matrix
+> print(is.symmetric.nb(voi.knn.nb))
+[1] FALSE
+
+> #[1] FALSE
+> voi.knn.sym.nb<-make.sym.nb(voi.knn.nb)
+
+> print(is.symmetric.nb(voi.knn.sym.nb))
+[1] TRUE
+
+> #[1] TRUE
+> 
+> # creating a listw class object
+> voi.knn.sym.listw<-nb2listw(voi.knn.sym.nb)
+
+> library(dplyr)
+
+> firms<-read.csv("geoloc_data_firms.csv", header=TRUE, dec=",", sep=";")
+
+> firms.sub<-sample_n(as_tibble(firms), size=100, replace=FALSE)
+
+> names(firms.sub)
+ [1] "ID"          "ADDRESS"     "STREET"      "STREET.NO"   "ZIP"        
+ [6] "CITY_POST"   "CITY"        "region2"     "poviat"      "region3"    
+[11] "subreg"      "coords.x1"   "coords.x2"   "LEGAL_FORM1" "LEGAL_FORM2"
+[16] "OWNERSHIP"   "PKD7"        "SEC_PKD7"    "GR_EMPL"     "empl"       
+
+> class(firms.sub)
+[1] "tbl_df"     "tbl"        "data.frame"
+
+> # matrix k = 5 nearest neighbours for point data
+> firms.knn<-knearneigh(as.matrix(firms.sub[,12:13]), k=5) # knn class object
+Warning in knearneigh(as.matrix(firms.sub[, 12:13]), k = 5) :
+  knearneigh: identical points found
+Warning in knearneigh(as.matrix(firms.sub[, 12:13]), k = 5) :
+  knearneigh: kd_tree not available for identical points
+
+> firms.knn.nb<- knn2nb(firms.knn) 
+
+> # figure of k of nearest neighbours
+> plot(voi[voi$jpt_nazwa_=="lubelskie",]) # drawing a map slice
+
+> plot(firms.knn.nb, as.matrix(firms.sub[,12:13]), add=TRUE) # relationship layer
+
+> print(is.symmetric.nb(firms.knn.nb))
+[1] FALSE
+
+> #[1] FALSE
+> firms.knn.sym.nb<-make.sym.nb(firms.knn.nb)
+
+> print(is.symmetric.nb(firms.knn.sym.nb))
+[1] TRUE
+
+> #[1] TRUE
+> 
+> # creating a listw class object  
+> firms.knn.sym.listw<-nb2listw(firms.knn.sym.nb)
+
+> summary(firms.knn.sym.listw)
+Characteristics of weights list object:
+Neighbour list object:
+Number of regions: 100 
+Number of nonzero links: 666 
+Percentage nonzero weights: 6.7 
+Average number of links: 6.7 
+Link number distribution:
+
+ 5  6  7  8  9 10 11 
+26 27 20 13 11  2  1 
+26 least connected regions:
+6 8 9 14 20 30 35 39 41 45 46 47 51 54 56 67 75 77 78 82 84 85 86 89 90 95 with 5 links
+1 most connected region:
+2 with 11 links
+
+Weights style: W 
+Weights constants summary:
+    n    nn  S0 S1  S2
+W 100 10000 100 31 404
+
+> #4.2.5	Matrix based on distance criterion (neighbours in a radius of d km)
+> 
+> # Fig.4.3 - a matrix of neighbours within a radius of d km
+> conti.d .... [TRUNCATED] 
+
+> plot(pov) # background map
+
+> plot(conti.d.30, crds.pov, add=TRUE) # neighbourly relations
+
+> # convert nb to matrix
+> conti.d.30.m<-nb2mat(conti.d.30, zero.policy=TRUE)
+
+> a<-colMeans(t(conti.d.30.m)) # averages in rows
+
+> pov$a<-a # appending a value vector to shapefile
+
+> spplot(pov, "a") # Fig.4.3b
+
+> try(conti.d.30.listw<-nb2listw(conti.d.30))
+Error in nb2listw(conti.d.30) : Empty neighbour sets found
+
+> #Error in command 'nb2listw(conti.d.30) #Empty neighbour sets found
+> 
+> # matrix of neighbours within a radius of d km, so that each region has a n .... [TRUNCATED] 
+
+> all<-max(unlist(nbdists(kkk, crds.pov, longlat=TRUE)))
+
+> all.nb<-dnearneigh(crds.pov, 0, all, longlat=TRUE)
+
+> summary(all.nb, crds.pov)
+Neighbour list object:
+Number of regions: 380 
+Number of nonzero links: 3046 
+Percentage nonzero weights: 2.1 
+Average number of links: 8 
+Link number distribution:
+
+ 1  2  3  4  5  6  7  8  9 10 11 12 15 16 19 21 22 23 24 25 26 27 28 29 30 
+ 1  9 15 40 46 58 61 49 33 23  6  7  4  2  1  1  3  2  1  5  3  6  2  1  1 
+1 least connected region:
+90 with 1 link
+1 most connected region:
+311 with 30 links
+Summary of link distances:
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+   0.02    0.29    0.38    0.38    0.47    0.68 
+
+  The decimal point is 1 digit(s) to the left of the |
+
+  0 | 2222222222223333444444
+  0 | 555555555566666677777777778888888888999999999999
+  1 | 00000000000000000000000000111111112222222222333333333333333333334444
+  1 | 55555555555555556666666666666666666677777777777777777777778888888888+38
+  2 | 00000000000000000000000000000000001111111111111111111111111111111111+118
+  2 | 55555555555555555555555555555555555555555555666666666666666666666666+272
+  3 | 00000000000000000000000000000000000000000000000000000000000011111111+298
+  3 | 55555555555555555555555555555555555555555555555555555555555555555555+342
+  4 | 00000000000000000000000000000000000000000000000000000000000000000000+388
+  4 | 55555555555555555555555555555555555555555555555555555555555555555555+286
+  5 | 00000000000000000000000000000000000000000000000000000000000000111111+184
+  5 | 55555555555555555555555555555555555555556666666666666666666666666666+114
+  6 | 00000000000000000000001111111111111111111111111111111111111111222222+42
+  6 | 55555555556666667788
+
+
+> plot(pov, border="grey") # neighbours by distance
+
+> plot(all.nb, crds.pov, add=TRUE)
+
+> #4.2.6 Inverse distance matrix
+> 
+> # inverse matrix
+> poviats.knn<-knearneigh(crds.pov, k=379) 
+Warning in knearneigh(crds.pov, k = 379) :
+  k greater than one-third of the number of data points
+
+> poviats.nb<-knn2nb(poviats.knn)
+
+> dist<-nbdists(poviats.nb, crds.pov) 
+
+> dist1<-lapply(dist, function(x) 1/x) # list class object
+
+> poviats.dist.listw<-nb2listw(poviats.nb, glist=dist1)
+
+> summary(poviats.dist.listw)	
+Characteristics of weights list object:
+Neighbour list object:
+Number of regions: 380 
+Number of nonzero links: 144020 
+Percentage nonzero weights: 100 
+Average number of links: 379 
+Non-symmetric neighbours list
+Link number distribution:
+
+379 
+380 
+380 least connected regions:
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143 144 145 146 147 148 149 150 151 152 153 154 155 156 157 158 159 160 161 162 163 164 165 166 167 168 169 170 171 172 173 174 175 176 177 178 179 180 181 182 183 184 185 186 187 188 189 190 191 192 193 194 195 196 197 198 199 200 201 202 203 204 205 206 207 208 209 210 211 212 213 214 215 216 217 218 219 220 221 222 223 224 225 226 227 228 229 230 231 232 233 234 235 236 237 238 239 240 241 242 243 244 245 246 247 248 249 250 251 252 253 254 255 256 257 258 259 260 261 262 263 264 265 266 267 268 269 270 271 272 273 274 275 276 277 278 279 280 281 282 283 284 285 286 287 288 289 290 291 292 293 294 295 296 297 298 299 300 301 302 303 304 305 306 307 308 309 310 311 312 313 314 315 316 317 318 319 320 321 322 323 324 325 326 327 328 329 330 331 332 333 334 335 336 337 338 339 340 341 342 343 344 345 346 347 348 349 350 351 352 353 354 355 356 357 358 359 360 361 362 363 364 365 366 367 368 369 370 371 372 373 374 375 376 377 378 379 380 with 379 links
+380 most connected regions:
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143 144 145 146 147 148 149 150 151 152 153 154 155 156 157 158 159 160 161 162 163 164 165 166 167 168 169 170 171 172 173 174 175 176 177 178 179 180 181 182 183 184 185 186 187 188 189 190 191 192 193 194 195 196 197 198 199 200 201 202 203 204 205 206 207 208 209 210 211 212 213 214 215 216 217 218 219 220 221 222 223 224 225 226 227 228 229 230 231 232 233 234 235 236 237 238 239 240 241 242 243 244 245 246 247 248 249 250 251 252 253 254 255 256 257 258 259 260 261 262 263 264 265 266 267 268 269 270 271 272 273 274 275 276 277 278 279 280 281 282 283 284 285 286 287 288 289 290 291 292 293 294 295 296 297 298 299 300 301 302 303 304 305 306 307 308 309 310 311 312 313 314 315 316 317 318 319 320 321 322 323 324 325 326 327 328 329 330 331 332 333 334 335 336 337 338 339 340 341 342 343 344 345 346 347 348 349 350 351 352 353 354 355 356 357 358 359 360 361 362 363 364 365 366 367 368 369 370 371 372 373 374 375 376 377 378 379 380 with 379 links
+
+Weights style: W 
+Weights constants summary:
+    n     nn  S0  S1   S2
+W 380 144400 380 6.3 1528
+
+> # power matrix
+> dist2<-lapply(dist, function(x) x**(-2)) 
+
+> poviats.dist.listw2<-nb2listw(poviats.nb, glist=dist2)
+
+> # exponential matrix
+> dist3<-lapply(dist, function(x) exp(-1.5*x)) 
+
+> poviats.dist.listw3<-nb2listw(poviats.nb, glist=dist3)
+
+> #4.2.7	Summarizing and editing of spatial weights matrix 
+> 
+> summary(conti.d.30) # summary of the nb class neighbourhood matrix
+Neighbour list object:
+Number of regions: 380 
+Number of nonzero links: 1168 
+Percentage nonzero weights: 0.81 
+Average number of links: 3.1 
+41 regions with no links:
+18 24 51 53 57 60 67 69 109 120 125 126 141 153 165 187 188 194 201 213
+216 230 231 242 243 247 255 257 258 262 264 266 267 273 289 294 297 338
+364 375 377
+Link number distribution:
+
+ 0  1  2  3  4  5  6  7  9 10 11 13 14 15 16 17 18 19 
+41 80 82 78 47 25  1  1  3  1  2  3  3  1  3  3  4  2 
+80 least connected regions:
+17 22 26 27 30 31 32 33 36 38 43 50 52 54 59 62 63 64 72 90 95 107 111 128 129 130 131 132 134 144 150 154 163 172 173 175 189 190 198 199 200 204 205 210 212 215 217 220 221 222 224 227 228 234 235 237 244 253 256 261 263 268 271 274 284 285 287 288 290 292 293 295 296 298 334 339 340 352 368 369 with 1 link
+2 most connected regions:
+276 283 with 19 links
+
+> all.listw<-nb2listw(all.nb) 
+
+> summary(unlist(all.listw$weights))
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+   0.03    0.08    0.12    0.12    0.17    1.00 
+
+> all.mat<-nb2mat(all.nb)
+
+> summary(all.mat)
+       V1              V2             V3             V4              V5       
+ Min.   :0.000   Min.   :0.00   Min.   :0.00   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.00   1st Qu.:0.00   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.00   Median :0.00   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.00   Mean   :0.00   Mean   :0.002   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.00   3rd Qu.:0.00   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.250   Max.   :0.33   Max.   :0.33   Max.   :0.125   Max.   :0.143  
+       V6            V7              V8              V9             V10     
+ Min.   :0.0   Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.0  
+ 1st Qu.:0.0   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.0  
+ Median :0.0   Median :0.000   Median :0.000   Median :0.000   Median :0.0  
+ Mean   :0.0   Mean   :0.003   Mean   :0.003   Mean   :0.002   Mean   :0.0  
+ 3rd Qu.:0.0   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.0  
+ Max.   :0.5   Max.   :0.250   Max.   :0.167   Max.   :0.143   Max.   :0.5  
+      V11             V12             V13             V14             V15      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.00  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.00  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000   Median :0.00  
+ Mean   :0.003   Mean   :0.003   Mean   :0.001   Mean   :0.003   Mean   :0.00  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.00  
+ Max.   :0.200   Max.   :0.143   Max.   :0.200   Max.   :0.167   Max.   :0.33  
+      V16             V17             V18            V19             V20       
+ Min.   :0.000   Min.   :0.000   Min.   :0.00   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.00   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.00   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.003   Mean   :0.00   Mean   :0.002   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.00   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.167   Max.   :0.200   Max.   :0.33   Max.   :0.200   Max.   :0.143  
+      V21             V22             V23             V24       
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.002   Mean   :0.002   Mean   :0.003   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.200   Max.   :0.167   Max.   :0.143   Max.   :0.250  
+      V25             V26             V27             V28       
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.003   Mean   :0.003   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.167   Max.   :0.200   Max.   :0.250   Max.   :0.167  
+      V29             V30             V31             V32            V33       
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.00   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.00   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.00   Median :0.000  
+ Mean   :0.003   Mean   :0.003   Mean   :0.002   Mean   :0.00   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.00   3rd Qu.:0.000  
+ Max.   :0.167   Max.   :0.200   Max.   :0.200   Max.   :0.33   Max.   :0.167  
+      V34             V35             V36             V37       
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.002   Mean   :0.003   Mean   :0.003   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.143   Max.   :0.143   Max.   :0.200   Max.   :0.167  
+      V38             V39             V40             V41       
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.002   Mean   :0.002   Mean   :0.003   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.200   Max.   :0.200   Max.   :0.167   Max.   :0.125  
+      V42             V43             V44             V45       
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.002   Mean   :0.002   Mean   :0.003   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.143   Max.   :0.200   Max.   :0.167   Max.   :0.167  
+      V46             V47             V48             V49             V50      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.00  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.00  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000   Median :0.00  
+ Mean   :0.003   Mean   :0.003   Mean   :0.002   Mean   :0.002   Mean   :0.00  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.00  
+ Max.   :0.167   Max.   :0.167   Max.   :0.167   Max.   :0.200   Max.   :0.33  
+      V51            V52             V53             V54             V55       
+ Min.   :0.00   Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.00   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.00   Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.00   Mean   :0.002   Mean   :0.002   Mean   :0.001   Mean   :0.003  
+ 3rd Qu.:0.00   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.33   Max.   :0.250   Max.   :0.250   Max.   :0.167   Max.   :0.250  
+      V56             V57             V58             V59       
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.003   Mean   :0.003   Mean   :0.004  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.250   Max.   :0.200   Max.   :0.200   Max.   :0.250  
+      V60             V61             V62             V63             V64      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.00  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.00  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000   Median :0.00  
+ Mean   :0.002   Mean   :0.002   Mean   :0.003   Mean   :0.003   Mean   :0.00  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.00  
+ Max.   :0.200   Max.   :0.143   Max.   :0.250   Max.   :0.167   Max.   :0.33  
+      V65             V66             V67            V68             V69       
+ Min.   :0.000   Min.   :0.000   Min.   :0.00   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.00   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.00   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.002   Mean   :0.00   Mean   :0.002   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.00   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.200   Max.   :0.200   Max.   :0.33   Max.   :0.250   Max.   :0.250  
+      V70            V71             V72             V73            V74       
+ Min.   :0.00   Min.   :0.000   Min.   :0.000   Min.   :0.00   Min.   :0.000  
+ 1st Qu.:0.00   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.00   1st Qu.:0.000  
+ Median :0.00   Median :0.000   Median :0.000   Median :0.00   Median :0.000  
+ Mean   :0.00   Mean   :0.003   Mean   :0.003   Mean   :0.00   Mean   :0.003  
+ 3rd Qu.:0.00   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.00   3rd Qu.:0.000  
+ Max.   :0.33   Max.   :0.200   Max.   :0.250   Max.   :0.33   Max.   :0.167  
+      V75             V76             V77             V78            V79       
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.00   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.00   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.00   Median :0.000  
+ Mean   :0.003   Mean   :0.003   Mean   :0.003   Mean   :0.00   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.00   3rd Qu.:0.000  
+ Max.   :0.167   Max.   :0.100   Max.   :0.143   Max.   :0.33   Max.   :0.125  
+      V80            V81             V82             V83             V84   
+ Min.   :0.00   Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0  
+ 1st Qu.:0.00   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0  
+ Median :0.00   Median :0.000   Median :0.000   Median :0.000   Median :0  
+ Mean   :0.00   Mean   :0.002   Mean   :0.003   Mean   :0.001   Mean   :0  
+ 3rd Qu.:0.00   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0  
+ Max.   :0.33   Max.   :0.167   Max.   :0.250   Max.   :0.167   Max.   :1  
+      V85             V86             V87             V88       
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.002   Mean   :0.004   Mean   :0.003   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.125   Max.   :0.200   Max.   :0.143   Max.   :0.250  
+      V89             V90             V91             V92       
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.002   Mean   :0.001   Mean   :0.003   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.167   Max.   :0.250   Max.   :0.200   Max.   :0.143  
+      V93             V94             V95            V96             V97       
+ Min.   :0.000   Min.   :0.000   Min.   :0.00   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.00   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.00   Median :0.000   Median :0.000  
+ Mean   :0.002   Mean   :0.003   Mean   :0.00   Mean   :0.003   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.00   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.143   Max.   :0.125   Max.   :0.33   Max.   :0.167   Max.   :0.125  
+      V98             V99             V100            V101      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.003   Mean   :0.003   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.167   Max.   :0.167   Max.   :0.167   Max.   :0.143  
+      V102            V103            V104            V105      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.002   Mean   :0.003   Mean   :0.002   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.143   Max.   :0.167   Max.   :0.167   Max.   :0.167  
+      V106            V107            V108            V109      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.002   Mean   :0.002   Mean   :0.003   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.167   Max.   :0.167   Max.   :0.167   Max.   :0.167  
+      V110            V111            V112            V113      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.003   Mean   :0.002   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.167   Max.   :0.167   Max.   :0.125   Max.   :0.167  
+      V114            V115            V116            V117      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.002   Mean   :0.002   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.167   Max.   :0.125   Max.   :0.167   Max.   :0.167  
+      V118            V119            V120            V121      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.003   Mean   :0.001   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.125   Max.   :0.167   Max.   :0.200   Max.   :0.167  
+      V122            V123            V124            V125          V126      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.0   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.0   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.0   Median :0.000  
+ Mean   :0.003   Mean   :0.003   Mean   :0.003   Mean   :0.0   Mean   :0.004  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.0   3rd Qu.:0.000  
+ Max.   :0.200   Max.   :0.250   Max.   :0.250   Max.   :0.5   Max.   :0.200  
+      V127            V128            V129           V130          V131      
+ Min.   :0.000   Min.   :0.000   Min.   :0.00   Min.   :0.0   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.00   1st Qu.:0.0   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.00   Median :0.0   Median :0.000  
+ Mean   :0.002   Mean   :0.001   Mean   :0.00   Mean   :0.0   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.00   3rd Qu.:0.0   3rd Qu.:0.000  
+ Max.   :0.167   Max.   :0.200   Max.   :0.33   Max.   :0.5   Max.   :0.200  
+      V132          V133            V134          V135            V136     
+ Min.   :0.0   Min.   :0.000   Min.   :0.0   Min.   :0.000   Min.   :0.00  
+ 1st Qu.:0.0   1st Qu.:0.000   1st Qu.:0.0   1st Qu.:0.000   1st Qu.:0.00  
+ Median :0.0   Median :0.000   Median :0.0   Median :0.000   Median :0.00  
+ Mean   :0.0   Mean   :0.003   Mean   :0.0   Mean   :0.003   Mean   :0.00  
+ 3rd Qu.:0.0   3rd Qu.:0.000   3rd Qu.:0.0   3rd Qu.:0.000   3rd Qu.:0.00  
+ Max.   :0.5   Max.   :0.200   Max.   :0.5   Max.   :0.167   Max.   :0.33  
+      V137            V138            V139            V140      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.004   Mean   :0.002   Mean   :0.002   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.125   Max.   :0.167   Max.   :0.200   Max.   :0.167  
+      V141            V142            V143            V144      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.002   Mean   :0.004   Mean   :0.003   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.250   Max.   :0.200   Max.   :0.143   Max.   :0.167  
+      V145            V146            V147            V148      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.002   Mean   :0.003   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.200   Max.   :0.250   Max.   :0.167   Max.   :0.167  
+      V149            V150            V151            V152      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.003   Mean   :0.003   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.125   Max.   :0.200   Max.   :0.143   Max.   :0.200  
+      V153            V154            V155            V156      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.002   Mean   :0.002   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.200   Max.   :0.250   Max.   :0.167   Max.   :0.167  
+      V157            V158            V159            V160      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.002   Mean   :0.002   Mean   :0.003   Mean   :0.001  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.200   Max.   :0.143   Max.   :0.167   Max.   :0.167  
+      V161            V162            V163            V164            V165    
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.0  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.0  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000   Median :0.0  
+ Mean   :0.003   Mean   :0.002   Mean   :0.003   Mean   :0.003   Mean   :0.0  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.0  
+ Max.   :0.200   Max.   :0.250   Max.   :0.200   Max.   :0.167   Max.   :0.5  
+      V166            V167            V168            V169      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.003   Mean   :0.002   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.167   Max.   :0.167   Max.   :0.200   Max.   :0.200  
+      V170            V171            V172            V173      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.002   Mean   :0.002   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.167   Max.   :0.200   Max.   :0.250   Max.   :0.250  
+      V174            V175            V176            V177      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.002   Mean   :0.002   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.167   Max.   :0.250   Max.   :0.143   Max.   :0.167  
+      V178            V179            V180            V181      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.004   Mean   :0.003   Mean   :0.003   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.167   Max.   :0.167   Max.   :0.167   Max.   :0.167  
+      V182            V183            V184            V185      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.002   Mean   :0.003   Mean   :0.002   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.167   Max.   :0.167   Max.   :0.250   Max.   :0.167  
+      V186            V187            V188           V189          V190      
+ Min.   :0.000   Min.   :0.000   Min.   :0.00   Min.   :0.0   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.00   1st Qu.:0.0   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.00   Median :0.0   Median :0.000  
+ Mean   :0.002   Mean   :0.003   Mean   :0.00   Mean   :0.0   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.00   3rd Qu.:0.0   3rd Qu.:0.000  
+ Max.   :0.167   Max.   :0.167   Max.   :0.33   Max.   :0.5   Max.   :0.250  
+      V191            V192            V193           V194            V195      
+ Min.   :0.000   Min.   :0.000   Min.   :0.00   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.00   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.00   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.002   Mean   :0.00   Mean   :0.002   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.00   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.143   Max.   :0.167   Max.   :0.33   Max.   :0.250   Max.   :0.167  
+      V196            V197           V198            V199            V200      
+ Min.   :0.000   Min.   :0.00   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.00   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.00   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.00   Mean   :0.002   Mean   :0.002   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.00   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.167   Max.   :0.33   Max.   :0.250   Max.   :0.167   Max.   :0.250  
+      V201          V202            V203            V204           V205      
+ Min.   :0.0   Min.   :0.000   Min.   :0.000   Min.   :0.00   Min.   :0.000  
+ 1st Qu.:0.0   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.00   1st Qu.:0.000  
+ Median :0.0   Median :0.000   Median :0.000   Median :0.00   Median :0.000  
+ Mean   :0.0   Mean   :0.003   Mean   :0.002   Mean   :0.00   Mean   :0.002  
+ 3rd Qu.:0.0   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.00   3rd Qu.:0.000  
+ Max.   :0.5   Max.   :0.250   Max.   :0.250   Max.   :0.33   Max.   :0.167  
+      V206            V207            V208            V209      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.002   Mean   :0.003   Mean   :0.002   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.200   Max.   :0.200   Max.   :0.167   Max.   :0.167  
+      V210            V211            V212            V213      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.003   Mean   :0.002   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.200   Max.   :0.167   Max.   :0.167   Max.   :0.167  
+      V214            V215            V216            V217      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.002   Mean   :0.002   Mean   :0.001   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.167   Max.   :0.167   Max.   :0.200   Max.   :0.200  
+      V218            V219            V220            V221      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.004   Mean   :0.003   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.250   Max.   :0.250   Max.   :0.250   Max.   :0.200  
+      V222            V223            V224           V225            V226      
+ Min.   :0.000   Min.   :0.000   Min.   :0.00   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.00   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.00   Median :0.000   Median :0.000  
+ Mean   :0.002   Mean   :0.002   Mean   :0.00   Mean   :0.003   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.00   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.167   Max.   :0.200   Max.   :0.33   Max.   :0.167   Max.   :0.167  
+      V227            V228            V229            V230           V231      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.00   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.00   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.00   Median :0.000  
+ Mean   :0.002   Mean   :0.003   Mean   :0.003   Mean   :0.00   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.00   3rd Qu.:0.000  
+ Max.   :0.143   Max.   :0.167   Max.   :0.250   Max.   :0.33   Max.   :0.250  
+      V232            V233            V234           V235            V236      
+ Min.   :0.000   Min.   :0.000   Min.   :0.00   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.00   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.00   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.002   Mean   :0.00   Mean   :0.003   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.00   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.167   Max.   :0.125   Max.   :0.33   Max.   :0.250   Max.   :0.167  
+      V237            V238            V239            V240      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.004   Mean   :0.002   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.250   Max.   :0.200   Max.   :0.200   Max.   :0.167  
+      V241            V242            V243            V244           V245      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.00   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.00   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.00   Median :0.000  
+ Mean   :0.003   Mean   :0.002   Mean   :0.002   Mean   :0.00   Mean   :0.004  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.00   3rd Qu.:0.000  
+ Max.   :0.167   Max.   :0.250   Max.   :0.250   Max.   :0.33   Max.   :0.143  
+      V246            V247           V248            V249            V250      
+ Min.   :0.000   Min.   :0.00   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.00   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.00   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.002   Mean   :0.00   Mean   :0.002   Mean   :0.002   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.00   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.143   Max.   :0.33   Max.   :0.167   Max.   :0.250   Max.   :0.167  
+      V251           V252            V253           V254            V255    
+ Min.   :0.00   Min.   :0.000   Min.   :0.00   Min.   :0.000   Min.   :0.0  
+ 1st Qu.:0.00   1st Qu.:0.000   1st Qu.:0.00   1st Qu.:0.000   1st Qu.:0.0  
+ Median :0.00   Median :0.000   Median :0.00   Median :0.000   Median :0.0  
+ Mean   :0.00   Mean   :0.002   Mean   :0.00   Mean   :0.002   Mean   :0.0  
+ 3rd Qu.:0.00   3rd Qu.:0.000   3rd Qu.:0.00   3rd Qu.:0.000   3rd Qu.:0.0  
+ Max.   :0.33   Max.   :0.250   Max.   :0.33   Max.   :0.250   Max.   :0.5  
+      V256          V257            V258            V259            V260      
+ Min.   :0.0   Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.0   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.0   Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.0   Mean   :0.002   Mean   :0.002   Mean   :0.003   Mean   :0.003  
+ 3rd Qu.:0.0   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.5   Max.   :0.250   Max.   :0.200   Max.   :0.250   Max.   :0.250  
+      V261            V262            V263            V264      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.002   Mean   :0.003   Mean   :0.002   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.250   Max.   :0.250   Max.   :0.250   Max.   :0.250  
+      V265            V266           V267           V268            V269    
+ Min.   :0.000   Min.   :0.00   Min.   :0.00   Min.   :0.000   Min.   :0.0  
+ 1st Qu.:0.000   1st Qu.:0.00   1st Qu.:0.00   1st Qu.:0.000   1st Qu.:0.0  
+ Median :0.000   Median :0.00   Median :0.00   Median :0.000   Median :0.0  
+ Mean   :0.003   Mean   :0.00   Mean   :0.00   Mean   :0.002   Mean   :0.0  
+ 3rd Qu.:0.000   3rd Qu.:0.00   3rd Qu.:0.00   3rd Qu.:0.000   3rd Qu.:0.0  
+ Max.   :0.167   Max.   :0.33   Max.   :0.33   Max.   :0.250   Max.   :0.5  
+      V270            V271          V272            V273            V274      
+ Min.   :0.000   Min.   :0.0   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.0   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.0   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.002   Mean   :0.0   Mean   :0.002   Mean   :0.003   Mean   :0.001  
+ 3rd Qu.:0.000   3rd Qu.:0.0   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.143   Max.   :0.5   Max.   :0.143   Max.   :0.250   Max.   :0.167  
+      V275            V276            V277            V278      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.003   Mean   :0.003   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.067   Max.   :0.067   Max.   :0.083   Max.   :0.091  
+      V279            V280            V281            V282      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.002   Mean   :0.003   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.083   Max.   :0.167   Max.   :0.125   Max.   :0.167  
+      V283            V284           V285            V286           V287      
+ Min.   :0.000   Min.   :0.00   Min.   :0.000   Min.   :0.00   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.00   1st Qu.:0.000   1st Qu.:0.00   1st Qu.:0.000  
+ Median :0.000   Median :0.00   Median :0.000   Median :0.00   Median :0.000  
+ Mean   :0.003   Mean   :0.00   Mean   :0.002   Mean   :0.00   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.00   3rd Qu.:0.000   3rd Qu.:0.00   3rd Qu.:0.000  
+ Max.   :0.067   Max.   :0.33   Max.   :0.250   Max.   :0.33   Max.   :0.250  
+      V288            V289            V290            V291      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.001   Mean   :0.002   Mean   :0.002   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.250   Max.   :0.250   Max.   :0.250   Max.   :0.250  
+      V292            V293           V294          V295            V296     
+ Min.   :0.000   Min.   :0.00   Min.   :0.0   Min.   :0.000   Min.   :0.00  
+ 1st Qu.:0.000   1st Qu.:0.00   1st Qu.:0.0   1st Qu.:0.000   1st Qu.:0.00  
+ Median :0.000   Median :0.00   Median :0.0   Median :0.000   Median :0.00  
+ Mean   :0.001   Mean   :0.00   Mean   :0.0   Mean   :0.002   Mean   :0.00  
+ 3rd Qu.:0.000   3rd Qu.:0.00   3rd Qu.:0.0   3rd Qu.:0.000   3rd Qu.:0.00  
+ Max.   :0.200   Max.   :0.33   Max.   :0.5   Max.   :0.250   Max.   :0.33  
+      V297            V298            V299            V300      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.001   Mean   :0.002   Mean   :0.002   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.250   Max.   :0.250   Max.   :0.250   Max.   :0.250  
+      V301            V302            V303            V304      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.003   Mean   :0.003   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.125   Max.   :0.250   Max.   :0.200   Max.   :0.167  
+      V305            V306            V307            V308      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.003   Mean   :0.003   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.250   Max.   :0.200   Max.   :0.100   Max.   :0.143  
+      V309            V310            V311            V312      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.003   Mean   :0.004   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.111   Max.   :0.167   Max.   :0.083   Max.   :0.125  
+      V313            V314            V315            V316      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.002   Mean   :0.003   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.083   Max.   :0.200   Max.   :0.083   Max.   :0.125  
+      V317            V318            V319            V320      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.002   Mean   :0.002   Mean   :0.001  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.083   Max.   :0.200   Max.   :0.167   Max.   :0.200  
+      V321            V322            V323            V324      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.002   Mean   :0.003   Mean   :0.002   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.083   Max.   :0.067   Max.   :0.167   Max.   :0.091  
+      V325            V326            V327            V328      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.002   Mean   :0.002   Mean   :0.003   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.100   Max.   :0.167   Max.   :0.091   Max.   :0.067  
+      V329            V330            V331            V332            V333    
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.0  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.0  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000   Median :0.0  
+ Mean   :0.003   Mean   :0.003   Mean   :0.003   Mean   :0.003   Mean   :0.0  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.0  
+ Max.   :0.067   Max.   :0.100   Max.   :0.083   Max.   :0.083   Max.   :0.5  
+      V334           V335            V336            V337            V338      
+ Min.   :0.00   Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.00   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.00   Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.00   Mean   :0.004   Mean   :0.002   Mean   :0.003   Mean   :0.003  
+ 3rd Qu.:0.00   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.33   Max.   :0.167   Max.   :0.125   Max.   :0.167   Max.   :0.167  
+      V339           V340            V341            V342           V343      
+ Min.   :0.00   Min.   :0.000   Min.   :0.000   Min.   :0.00   Min.   :0.000  
+ 1st Qu.:0.00   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.00   1st Qu.:0.000  
+ Median :0.00   Median :0.000   Median :0.000   Median :0.00   Median :0.000  
+ Mean   :0.00   Mean   :0.001   Mean   :0.003   Mean   :0.00   Mean   :0.003  
+ 3rd Qu.:0.00   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.00   3rd Qu.:0.000  
+ Max.   :0.33   Max.   :0.250   Max.   :0.167   Max.   :0.33   Max.   :0.167  
+      V344            V345            V346            V347      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.003   Mean   :0.002   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.143   Max.   :0.167   Max.   :0.143   Max.   :0.143  
+      V348            V349            V350          V351            V352      
+ Min.   :0.000   Min.   :0.000   Min.   :0.0   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.0   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.0   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.003   Mean   :0.0   Mean   :0.003   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.0   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.250   Max.   :0.167   Max.   :0.5   Max.   :0.200   Max.   :0.200  
+      V353            V354            V355            V356      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.002   Mean   :0.003   Mean   :0.003   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.143   Max.   :0.167   Max.   :0.143   Max.   :0.125  
+      V357            V358            V359            V360            V361     
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.00  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.00  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000   Median :0.00  
+ Mean   :0.003   Mean   :0.003   Mean   :0.003   Mean   :0.002   Mean   :0.00  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.00  
+ Max.   :0.250   Max.   :0.143   Max.   :0.143   Max.   :0.125   Max.   :0.33  
+      V362            V363            V364            V365      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.003   Mean   :0.003   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.250   Max.   :0.167   Max.   :0.250   Max.   :0.250  
+      V366            V367            V368            V369      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.002   Mean   :0.003   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.200   Max.   :0.143   Max.   :0.167   Max.   :0.143  
+      V370            V371            V372            V373      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.002   Mean   :0.003   Mean   :0.001  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.167   Max.   :0.143   Max.   :0.143   Max.   :0.143  
+      V374            V375            V376            V377      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.003   Mean   :0.003   Mean   :0.002  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.250   Max.   :0.250   Max.   :0.200   Max.   :0.200  
+      V378            V379            V380      
+ Min.   :0.000   Min.   :0.000   Min.   :0.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:0.000  
+ Median :0.000   Median :0.000   Median :0.000  
+ Mean   :0.003   Mean   :0.002   Mean   :0.003  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:0.000  
+ Max.   :0.167   Max.   :0.125   Max.   :0.200  
+
+> table(card(all.nb))
+
+ 1  2  3  4  5  6  7  8  9 10 11 12 15 16 19 21 22 23 24 25 26 27 28 29 30 
+ 1  9 15 40 46 58 61 49 33 23  6  7  4  2  1  1  3  2  1  5  3  6  2  1  1 
+
+> voi.knn.mat<-nb2mat(voi.knn.nb)
+
+> print(voi.knn.mat)
+   [,1] [,2] [,3] [,4] [,5] [,6] [,7] [,8] [,9] [,10] [,11] [,12] [,13] [,14]
+1   0.0  0.0  0.2  0.0  0.0  0.2  0.0  0.0  0.2   0.2   0.2   0.0   0.0   0.0
+2   0.0  0.0  0.0  0.2  0.0  0.2  0.0  0.0  0.0   0.0   0.2   0.0   0.2   0.0
+3   0.2  0.0  0.0  0.0  0.2  0.0  0.2  0.0  0.0   0.2   0.2   0.0   0.0   0.0
+4   0.0  0.2  0.0  0.0  0.0  0.0  0.2  0.0  0.0   0.0   0.2   0.2   0.0   0.0
+5   0.0  0.0  0.2  0.0  0.0  0.0  0.2  0.2  0.0   0.2   0.2   0.0   0.0   0.0
+6   0.2  0.2  0.0  0.0  0.0  0.0  0.0  0.0  0.0   0.2   0.2   0.0   0.2   0.0
+7   0.0  0.0  0.2  0.2  0.2  0.0  0.0  0.0  0.0   0.0   0.2   0.2   0.0   0.0
+8   0.0  0.0  0.2  0.0  0.2  0.0  0.0  0.0  0.2   0.2   0.0   0.0   0.0   0.2
+9   0.2  0.0  0.0  0.0  0.0  0.2  0.0  0.2  0.0   0.2   0.0   0.0   0.0   0.2
+10  0.2  0.0  0.2  0.0  0.2  0.0  0.0  0.0  0.2   0.0   0.0   0.0   0.0   0.2
+11  0.2  0.2  0.2  0.2  0.0  0.2  0.0  0.0  0.0   0.0   0.0   0.0   0.0   0.0
+12  0.0  0.2  0.0  0.2  0.0  0.0  0.2  0.0  0.0   0.0   0.0   0.0   0.0   0.0
+13  0.2  0.2  0.0  0.0  0.0  0.2  0.0  0.0  0.0   0.0   0.2   0.0   0.0   0.0
+14  0.2  0.0  0.2  0.0  0.0  0.0  0.0  0.2  0.2   0.2   0.0   0.0   0.0   0.0
+15  0.0  0.2  0.0  0.2  0.0  0.2  0.0  0.0  0.0   0.0   0.0   0.0   0.2   0.0
+16  0.0  0.2  0.0  0.2  0.0  0.0  0.0  0.0  0.0   0.0   0.0   0.2   0.2   0.0
+   [,15] [,16]
+1    0.0   0.0
+2    0.2   0.0
+3    0.0   0.0
+4    0.0   0.2
+5    0.0   0.0
+6    0.0   0.0
+7    0.0   0.0
+8    0.0   0.0
+9    0.0   0.0
+10   0.0   0.0
+11   0.0   0.0
+12   0.2   0.2
+13   0.2   0.0
+14   0.0   0.0
+15   0.0   0.2
+16   0.2   0.0
+attr(,"call")
+nb2mat(neighbours = voi.knn.nb)
+
+> cont.listw$weights
+[[1]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[2]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[3]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[4]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[5]]
+ [1] 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1
+
+[[6]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[7]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[8]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[9]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[10]]
+[1] 0.5 0.5
+
+[[11]]
+[1] 1
+
+[[12]]
+[1] 1
+
+[[13]]
+[1] 1
+
+[[14]]
+[1] 0.5 0.5
+
+[[15]]
+[1] 0.33 0.33 0.33
+
+[[16]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[17]]
+[1] 0.11 0.11 0.11 0.11 0.11 0.11 0.11 0.11 0.11
+
+[[18]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[19]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[20]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[21]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[22]]
+[1] 0.12 0.12 0.12 0.12 0.12 0.12 0.12 0.12
+
+[[23]]
+[1] 0.25 0.25 0.25 0.25
+
+[[24]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[25]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[26]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[27]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[28]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[29]]
+[1] 0.12 0.12 0.12 0.12 0.12 0.12 0.12 0.12
+
+[[30]]
+[1] 0.11 0.11 0.11 0.11 0.11 0.11 0.11 0.11 0.11
+
+[[31]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[32]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[33]]
+[1] 0.11 0.11 0.11 0.11 0.11 0.11 0.11 0.11 0.11
+
+[[34]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[35]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[36]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[37]]
+[1] 0.25 0.25 0.25 0.25
+
+[[38]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[39]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[40]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[41]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[42]]
+ [1] 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1
+
+[[43]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[44]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[45]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[46]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[47]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[48]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[49]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[50]]
+[1] 0.12 0.12 0.12 0.12 0.12 0.12 0.12 0.12
+
+[[51]]
+[1] 0.11 0.11 0.11 0.11 0.11 0.11 0.11 0.11 0.11
+
+[[52]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[53]]
+[1] 0.33 0.33 0.33
+
+[[54]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[55]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[56]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[57]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[58]]
+ [1] 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1
+
+[[59]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[60]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[61]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[62]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[63]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[64]]
+[1] 0.25 0.25 0.25 0.25
+
+[[65]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[66]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[67]]
+[1] 0.25 0.25 0.25 0.25
+
+[[68]]
+[1] 1
+
+[[69]]
+[1] 0.25 0.25 0.25 0.25
+
+[[70]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[71]]
+[1] 0.5 0.5
+
+[[72]]
+[1] 1
+
+[[73]]
+[1] 1
+
+[[74]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[75]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[76]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[77]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[78]]
+[1] 0.33 0.33 0.33
+
+[[79]]
+[1] 0.11 0.11 0.11 0.11 0.11 0.11 0.11 0.11 0.11
+
+[[80]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[81]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[82]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[83]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[84]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[85]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[86]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[87]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[88]]
+[1] 0.25 0.25 0.25 0.25
+
+[[89]]
+[1] 0.11 0.11 0.11 0.11 0.11 0.11 0.11 0.11 0.11
+
+[[90]]
+[1] 1
+
+[[91]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[92]]
+[1] 1
+
+[[93]]
+[1] 0.25 0.25 0.25 0.25
+
+[[94]]
+[1] 0.33 0.33 0.33
+
+[[95]]
+[1] 1
+
+[[96]]
+[1] 1
+
+[[97]]
+[1] 1
+
+[[98]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[99]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[100]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[101]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[102]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[103]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[104]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[105]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[106]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[107]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[108]]
+[1] 0.12 0.12 0.12 0.12 0.12 0.12 0.12 0.12
+
+[[109]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[110]]
+[1] 0.25 0.25 0.25 0.25
+
+[[111]]
+[1] 0.12 0.12 0.12 0.12 0.12 0.12 0.12 0.12
+
+[[112]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[113]]
+[1] 0.12 0.12 0.12 0.12 0.12 0.12 0.12 0.12
+
+[[114]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[115]]
+[1] 0.33 0.33 0.33
+
+[[116]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[117]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[118]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[119]]
+[1] 0.33 0.33 0.33
+
+[[120]]
+[1] 0.25 0.25 0.25 0.25
+
+[[121]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[122]]
+[1] 0.5 0.5
+
+[[123]]
+[1] 1
+
+[[124]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[125]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[126]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[127]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[128]]
+[1] 0.33 0.33 0.33
+
+[[129]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[130]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[131]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[132]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[133]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[134]]
+[1] 0.33 0.33 0.33
+
+[[135]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[136]]
+[1] 0.33 0.33 0.33
+
+[[137]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[138]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[139]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[140]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[141]]
+[1] 0.25 0.25 0.25 0.25
+
+[[142]]
+[1] 0.33 0.33 0.33
+
+[[143]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[144]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[145]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[146]]
+[1] 0.25 0.25 0.25 0.25
+
+[[147]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[148]]
+[1] 1
+
+[[149]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[150]]
+[1] 1
+
+[[151]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[152]]
+[1] 0.12 0.12 0.12 0.12 0.12 0.12 0.12 0.12
+
+[[153]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[154]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[155]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[156]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[157]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[158]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[159]]
+[1] 1
+
+[[160]]
+[1] 0.33 0.33 0.33
+
+[[161]]
+[1] 0.25 0.25 0.25 0.25
+
+[[162]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[163]]
+[1] 1
+
+[[164]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[165]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[166]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[167]]
+[1] 0.11 0.11 0.11 0.11 0.11 0.11 0.11 0.11 0.11
+
+[[168]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[169]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[170]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[171]]
+[1] 1
+
+[[172]]
+[1] 0.5 0.5
+
+[[173]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[174]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[175]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[176]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[177]]
+[1] 0.12 0.12 0.12 0.12 0.12 0.12 0.12 0.12
+
+[[178]]
+[1] 0.25 0.25 0.25 0.25
+
+[[179]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[180]]
+[1] 0.33 0.33 0.33
+
+[[181]]
+[1] 1
+
+[[182]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[183]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[184]]
+[1] 0.12 0.12 0.12 0.12 0.12 0.12 0.12 0.12
+
+[[185]]
+[1] 1
+
+[[186]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[187]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[188]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[189]]
+[1] 0.12 0.12 0.12 0.12 0.12 0.12 0.12 0.12
+
+[[190]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[191]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[192]]
+ [1] 0.091 0.091 0.091 0.091 0.091 0.091 0.091 0.091 0.091 0.091 0.091
+
+[[193]]
+[1] 1
+
+[[194]]
+[1] 0.33 0.33 0.33
+
+[[195]]
+[1] 0.11 0.11 0.11 0.11 0.11 0.11 0.11 0.11 0.11
+
+[[196]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[197]]
+[1] 0.25 0.25 0.25 0.25
+
+[[198]]
+[1] 1
+
+[[199]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[200]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[201]]
+[1] 0.25 0.25 0.25 0.25
+
+[[202]]
+[1] 1
+
+[[203]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[204]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[205]]
+ [1] 0.091 0.091 0.091 0.091 0.091 0.091 0.091 0.091 0.091 0.091 0.091
+
+[[206]]
+[1] 0.25 0.25 0.25 0.25
+
+[[207]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[208]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[209]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[210]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[211]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[212]]
+[1] 1
+
+[[213]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[214]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[215]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[216]]
+[1] 0.33 0.33 0.33
+
+[[217]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[218]]
+[1] 0.25 0.25 0.25 0.25
+
+[[219]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[220]]
+[1] 0.25 0.25 0.25 0.25
+
+[[221]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[222]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[223]]
+[1] 0.5 0.5
+
+[[224]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[225]]
+[1] 1
+
+[[226]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[227]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[228]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[229]]
+[1] 0.5 0.5
+
+[[230]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[231]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[232]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[233]]
+[1] 0.25 0.25 0.25 0.25
+
+[[234]]
+[1] 1
+
+[[235]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[236]]
+[1] 0.25 0.25 0.25 0.25
+
+[[237]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[238]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[239]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[240]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[241]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[242]]
+[1] 0.12 0.12 0.12 0.12 0.12 0.12 0.12 0.12
+
+[[243]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[244]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[245]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[246]]
+[1] 0.33 0.33 0.33
+
+[[247]]
+[1] 0.12 0.12 0.12 0.12 0.12 0.12 0.12 0.12
+
+[[248]]
+[1] 0.33 0.33 0.33
+
+[[249]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[250]]
+[1] 0.12 0.12 0.12 0.12 0.12 0.12 0.12 0.12
+
+[[251]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[252]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[253]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[254]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[255]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[256]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[257]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[258]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[259]]
+[1] 0.25 0.25 0.25 0.25
+
+[[260]]
+[1] 0.25 0.25 0.25 0.25
+
+[[261]]
+[1] 0.12 0.12 0.12 0.12 0.12 0.12 0.12 0.12
+
+[[262]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[263]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[264]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[265]]
+[1] 1
+
+[[266]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[267]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[268]]
+[1] 0.33 0.33 0.33
+
+[[269]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[270]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[271]]
+[1] 0.33 0.33 0.33
+
+[[272]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[273]]
+[1] 0.5 0.5
+
+[[274]]
+[1] 0.25 0.25 0.25 0.25
+
+[[275]]
+[1] 0.25 0.25 0.25 0.25
+
+[[276]]
+[1] 0.33 0.33 0.33
+
+[[277]]
+[1] 0.25 0.25 0.25 0.25
+
+[[278]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[279]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[280]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[281]]
+ [1] 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1
+
+[[282]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[283]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[284]]
+[1] 0.25 0.25 0.25 0.25
+
+[[285]]
+[1] 0.33 0.33 0.33
+
+[[286]]
+[1] 1
+
+[[287]]
+[1] 1
+
+[[288]]
+[1] 0.25 0.25 0.25 0.25
+
+[[289]]
+[1] 0.25 0.25 0.25 0.25
+
+[[290]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[291]]
+[1] 0.25 0.25 0.25 0.25
+
+[[292]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[293]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[294]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[295]]
+[1] 0.25 0.25 0.25 0.25
+
+[[296]]
+[1] 0.33 0.33 0.33
+
+[[297]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[298]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[299]]
+[1] 1
+
+[[300]]
+[1] 0.25 0.25 0.25 0.25
+
+[[301]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[302]]
+[1] 0.25 0.25 0.25 0.25
+
+[[303]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[304]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[305]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[306]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[307]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[308]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[309]]
+ [1] 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1
+
+[[310]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[311]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[312]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[313]]
+[1] 0.12 0.12 0.12 0.12 0.12 0.12 0.12 0.12
+
+[[314]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[315]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[316]]
+[1] 0.11 0.11 0.11 0.11 0.11 0.11 0.11 0.11 0.11
+
+[[317]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[318]]
+[1] 0.25 0.25 0.25 0.25
+
+[[319]]
+[1] 0.12 0.12 0.12 0.12 0.12 0.12 0.12 0.12
+
+[[320]]
+[1] 0.25 0.25 0.25 0.25
+
+[[321]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[322]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[323]]
+[1] 0.5 0.5
+
+[[324]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[325]]
+[1] 0.25 0.25 0.25 0.25
+
+[[326]]
+[1] 0.5 0.5
+
+[[327]]
+[1] 0.33 0.33 0.33
+
+[[328]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[329]]
+[1] 0.11 0.11 0.11 0.11 0.11 0.11 0.11 0.11 0.11
+
+[[330]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[331]]
+[1] 0.25 0.25 0.25 0.25
+
+[[332]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[333]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[334]]
+[1] 0.25 0.25 0.25 0.25
+
+[[335]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[336]]
+[1] 1
+
+[[337]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[338]]
+[1] 0.12 0.12 0.12 0.12 0.12 0.12 0.12 0.12
+
+[[339]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[340]]
+[1] 0.33 0.33 0.33
+
+[[341]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[342]]
+[1] 0.33 0.33 0.33
+
+[[343]]
+[1] 0.12 0.12 0.12 0.12 0.12 0.12 0.12 0.12
+
+[[344]]
+[1] 0.5 0.5
+
+[[345]]
+[1] 0.12 0.12 0.12 0.12 0.12 0.12 0.12 0.12
+
+[[346]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[347]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[348]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[349]]
+[1] 0.12 0.12 0.12 0.12 0.12 0.12 0.12 0.12
+
+[[350]]
+[1] 0.25 0.25 0.25 0.25
+
+[[351]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[352]]
+[1] 0.11 0.11 0.11 0.11 0.11 0.11 0.11 0.11 0.11
+
+[[353]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[354]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[355]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[356]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[357]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[358]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[359]]
+[1] 0.12 0.12 0.12 0.12 0.12 0.12 0.12 0.12
+
+[[360]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[361]]
+[1] 0.25 0.25 0.25 0.25
+
+[[362]]
+[1] 0.12 0.12 0.12 0.12 0.12 0.12 0.12 0.12
+
+[[363]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[364]]
+[1] 0.14 0.14 0.14 0.14 0.14 0.14 0.14
+
+[[365]]
+[1] 0.12 0.12 0.12 0.12 0.12 0.12 0.12 0.12
+
+[[366]]
+[1] 0.12 0.12 0.12 0.12 0.12 0.12 0.12 0.12
+
+[[367]]
+[1] 0.11 0.11 0.11 0.11 0.11 0.11 0.11 0.11 0.11
+
+[[368]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[369]]
+[1] 0.5 0.5
+
+[[370]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[371]]
+[1] 0.5 0.5
+
+[[372]]
+[1] 1
+
+[[373]]
+[1] 0.5 0.5
+
+[[374]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[375]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[376]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[377]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[378]]
+[1] 0.2 0.2 0.2 0.2 0.2
+
+[[379]]
+[1] 0.17 0.17 0.17 0.17 0.17 0.17
+
+[[380]]
+[1] 0.12 0.12 0.12 0.12 0.12 0.12 0.12 0.12
+
+attr(,"mode")
+[1] "binary"
+attr(,"W")
+[1] TRUE
+attr(,"comp")
+attr(,"comp")$d
+  [1]  6  7  7  5 10  5  6  6  6  2  1  1  1  2  3  5  9  7  5  5  7  8  4  6  7
+ [26]  6  6  6  8  9  5  5  9  5  6  6  4  5  7  5  6 10  7  5  6  6  5  7  6  8
+ [51]  9  7  3  5  5  6  7 10  6  6  6  5  6  4  5  5  4  1  4  6  2  1  1  5  6
+ [76]  5  6  3  9  5  7  7  6  5  7  6  7  4  9  1  7  1  4  3  1  1  1  6  5  6
+[101]  5  7  6  5  7  5  7  8  7  4  8  7  8  7  3  6  7  5  3  4  5  2  1  6  5
+[126]  6  6  3  7  5  5  7  5  3  6  3  6  5  5  5  4  3  6  5  5  4  6  1  5  1
+[151]  7  8  5  5  7  7  5  7  1  3  4  7  1  6  7  7  9  5  6  5  1  2  6  6  6
+[176]  5  8  4  5  3  1  5  6  8  1  5  7  6  8  5  6 11  1  3  9  6  4  1  5  7
+[201]  4  1  6  6 11  4  7  6  6  5  5  1  6  6  7  3  7  4  7  4  5  6  2  5  1
+[226]  6  7  7  2  6  5  7  4  1  6  4  7  5  5  5  6  8  7  5  7  3  8  3  7  8
+[251]  7  6  7  6  5  5  5  6  4  4  8  7  7  6  1  6  6  3  6  6  3  6  2  4  4
+[276]  3  4  5  5  6 10  5  7  4  3  1  1  4  4  7  4  5  7  7  4  3  5  5  1  4
+[301]  7  4  6  5  5  5  5  6 10  6  7  5  8  6  7  9  6  4  8  4  5  6  2  6  4
+[326]  2  3  5  9  7  4  5  6  4  5  1  5  8  7  3  5  3  8  2  8  7  5  5  8  4
+[351]  7  9  5  5  7  5  6  6  8  5  4  8  5  7  8  8  9  6  2  5  2  1  2  5  5
+[376]  5  5  5  6  8
+
+
+> # launching the editing interface
+> #edit.nb(voi.knn.nb, crds.voi, polys=voi)
+> 
+> cont.voi.nb
+Neighbour list object:
+Number of regions: 16 
+Number of nonzero links: 68 
+Percentage nonzero weights: 27 
+Average number of links: 4.2 
+
+> logic<-c(F,F,F,T,F,F,F,F,F,F,F,F,F,F,F,F)
+
+> name<-c("mazowieckie")
+
+> id<-c(4)
+
+> change1<-droplinks(cont.voi.nb, logic)
+
+> change2<-droplinks(cont.voi.nb, name)
+
+> change3<-droplinks(cont.voi.nb, id)	
+
+> change1 	# others give identical results
+Neighbour list object:
+Number of regions: 16 
+Number of nonzero links: 56 
+Percentage nonzero weights: 22 
+Average number of links: 3.5 
+1 region with no links:
+mazowieckie
+
+> subset<-c(F,T,F,T,F,F,F,F,F,F,T,F,F,F,F,F)
+
+> subset.voi<-subset.nb(cont.voi.nb, subset)
+
+> subset.voi
+Neighbour list object:
+Number of regions: 3 
+Number of nonzero links: 6 
+Percentage nonzero weights: 67 
+Average number of links: 2 
+
+> cont.voi.nb.self<-include.self(cont.voi.nb)
+
+> cont.voi.nb.self
+Neighbour list object:
+Number of regions: 16 
+Number of nonzero links: 84 
+Percentage nonzero weights: 33 
+Average number of links: 5.2 
+
+> par(mfrow=c(1,3)) # 1 x 3 split window
+
+> par(mar=c(5.1, 2, 4.1, 1))
+
+> plot(voi, main="complement.nb()")
+
+> plot(complement.nb(change1), crds.voi, add=T)
+
+> plot(voi, main="intersect.nb()")
+
+> plot(intersect.nb(cont.voi.nb, change1), crds.voi, add=T)
+
+> plot(voi, main="setdiff.nb()")
+
+> plot(setdiff.nb(cont.voi.nb, change1), crds.voi, add=T)
+
+> par(mfrow=c(1,1)) # 1 x 1 split window
+
+> #4.2.8	Spatial lags and higher order neighbourhood
+> 
+> head(levels(pov$jpt_nazwa_))
+[1] "powiat aleksandrowski"    "powiat augustowski"      
+[3] "powiat bartoszycki"       "powiat be\xb3chatowski"  
+[5] "powiat bialski"           "powiat Bia\xb3a Podlaska"
+
+> pov$SHOCK<-rep(0,380)
+
+> pov$SHOCK[pov$jpt_nazwa_=="powiat Łódź"]<-1 	#Łódź
+
+> pov$SHOCK[pov$jpt_nazwa_=="powiat Warszawa"]<-1 	#Warszawa
+
+> pov$SHOCK[pov$jpt_nazwa_=="powiat Gdańsk"]<-1 	#Gdańsk
+
+> pov$SHOCK[pov$jpt_nazwa_=="powiat Poznań"]<-1 	#Poznań
+
+> spplot(pov, "SHOCK") 				#shock centres Fig.4.5a
+
+> # spatial lag of the SHOCK variable - first row
+> pov$lagg<-lag.listw(cont.listw, pov$SHOCK)
+
+> summary(pov$lagg)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+  0.000   0.000   0.000   0.004   0.000   0.250 
+
+> spplot(pov, "lagg") 			# first order lag
+
+> # spatial lag of the SHOCK variable - second row
+> poviats.2.list<-nblag(cont.nb, 2)
+
+> poviats.2.nb<-nblag_cumul(poviats.2.list)
+
+> pov$lagg<-lag.listw(nb2listw(poviats.2.nb), pov$SHOCK) 
+
+> spplot(pov, "lagg") 	# second order lag
+
+> # spatial lag of the SHOCK variable - third row
+> poviats.3.list<-nblag(cont.nb, 3)
+
+> poviats.3.nb<-nblag_cumul(poviats.3.list)
+
+> pov$lagg<- lag.listw(nb2listw(poviats.3.nb), pov$SHOCK)
+
+> spplot(pov, "lagg") 	# Fig.4.5b - third order lag
+
+> #4.2.9  Creating weights matrix based on group membership
+> 
+> data<-read.csv("data_nts4_2019.csv", header=TRUE, dec=",", sep=";", stringsAsFactors= .... [TRUNCATED] 
+
+> sub<-data[data$year==2017,]
+
+> names(sub)
+ [1] "ID_MAP"        "code_GUS"      "poviat_name1"  "poviat_name2" 
+ [5] "subreg72_name" "subreg72_nr"   "region_name"   "region_nr"    
+ [9] "year"          "core_city"     "dist"          "XA01"         
+[13] "XA02"          "XA03"          "XA04"          "XA05"         
+[17] "XA06"          "XA07"          "XA08"          "XA09"         
+[21] "XA10"          "XA11"          "XA12"          "XA13"         
+[25] "XA14"          "XA15"          "XA16"          "XA17"         
+[29] "XA18"          "XA19"          "XA20"          "XA21"         
+[33] "XA22"         
+
+> sub$region_name <- iconv(sub$region_name, "CP1250", "UTF-8")
+
+> table(sub$region_name)
+
+       Dolnośląskie  Kujawsko-Pomorskie             Łódzkie           Lubelskie 
+                 30                  23                  24                  24 
+           Lubuskie         Małopolskie         Mazowieckie            Opolskie 
+                 14                  22                  42                  12 
+       Podkarpackie           Podlaskie           Pomorskie             Śląskie 
+                 25                  17                  20                  36 
+     Świętokrzyskie Warmińsko-Mazurskie       Wielkopolskie  Zachodniopomorskie 
+                 14                  21                  35                  21 
+
+> matt<-matrix(0, nrow=380, ncol=380) # creating an empty matrix 
+
+> names<-unique(sub$region_name)
+
+> names
+ [1] "Podkarpackie"        "Mazowieckie"         "Lubelskie"          
+ [4] "Małopolskie"         "Łódzkie"             "Lubuskie"           
+ [7] "Opolskie"            "Wielkopolskie"       "Podlaskie"          
+[10] "Świętokrzyskie"      "Pomorskie"           "Zachodniopomorskie" 
+[13] "Dolnośląskie"        "Śląskie"             "Warmińsko-Mazurskie"
+[16] "Kujawsko-Pomorskie" 
+
+> for(i in 1:16){
++ c1<-which(sub$region_name==names[i])
++ matt[c1, c1]<-1}
+
+> diag(matt)<-0
+
+> vec<-rowSums(matt) # sums in rows - de facto number of neighbours
+
+> matt.W<-matt/vec # matrix standardisation
+
+> matt.listw<-mat2listw(matt.W) # conversion to listw
+Warning in mat2listw(matt.W) :
+  style is M (missing); style should be set to a valid value
+
+> matt.listw
+Characteristics of weights list object:
+Neighbour list object:
+Number of regions: 380 
+Number of nonzero links: 9702 
+Percentage nonzero weights: 6.7 
+Average number of links: 26 
+
+Weights style: M 
+Weights constants summary:
+    n     nn  S0 S1   S2
+M 380 144400 380 34 1520
+
+> # visualisation of values in the weight matrix
+> a<-apply(matt.W, 1, max) 	# max in rows
+
+> library(GISTools)		# Fig.4.6a
+
+> choropleth(pov, a)		# value of weights in the poviat
+
+> plot(voi, add=TRUE, lwd=2) 	# voivodship outline
+
+> sub<-data[data$year==2017, ]
+
+> names(sub)
+ [1] "ID_MAP"        "code_GUS"      "poviat_name1"  "poviat_name2" 
+ [5] "subreg72_name" "subreg72_nr"   "region_name"   "region_nr"    
+ [9] "year"          "core_city"     "dist"          "XA01"         
+[13] "XA02"          "XA03"          "XA04"          "XA05"         
+[17] "XA06"          "XA07"          "XA08"          "XA09"         
+[21] "XA10"          "XA11"          "XA12"          "XA13"         
+[25] "XA14"          "XA15"          "XA16"          "XA17"         
+[29] "XA18"          "XA19"          "XA20"          "XA21"         
+[33] "XA22"         
+
+> sub.k<-sub[,c(21,32,11)]
+
+> library(factoextra)
+
+> library(RColorBrewer)
+
+> fviz_nbclust(sub.k, kmeans, method="silhouette") # Fig.4.7a
+
+> clus<-eclust(sub.k, "kmeans", hc_metric="euclidean",k=2, graph=FALSE)
+
+> brks<-c(0,1,2,3)
+
+> cols<-brewer.pal(3, "Purples")
+
+> plot(pov, col=cols[findInterval(clus$cluster, brks)]) # Fig.4.7b
+
+> matt<-matrix(0, nrow=380, ncol=380) # creating an empty matrix
+
+> for(i in 1:2){
++ c1<-which(clus$cluster==i)
++ matt[c1, c1]<-1}
+
+> diag(matt)<-0
+
+> vec<-rowSums(matt) # sums in rows - de facto number of neighbours
+
+> matt.W<-matt/vec # matrix standardisation
+
+> matt.listw<-mat2listw(matt.W) # conversion to listw
+Warning in mat2listw(matt.W) :
+  style is M (missing); style should be set to a valid value
+
+> matt.listw
+Characteristics of weights list object:
+Neighbour list object:
+Number of regions: 380 
+Number of nonzero links: 107732 
+Percentage nonzero weights: 75 
+Average number of links: 284 
+
+Weights style: M 
+Weights constants summary:
+    n     nn  S0 S1   S2
+M 380 144400 380  4 1520
+
+> # visualisation of values in the weight matrix
+> a<-apply(matt.W, 1, max) 	# max in rows
+
+> library(GISTools)
+
+> choropleth(pov, a)		# value of weights in the poviat
+
+> plot(voi, add=TRUE, lwd=2) 	# voivodeship outline
+
+> #4.3 Distance measurement and spatial aggregation
+> 
+> firms<-read.csv("geoloc_data_firms.csv", header=TRUE, dec=",", sep=";", stringsAsFactors=TRUE .... [TRUNCATED] 
+
+> crds.Lublin<-c(22.4236877, 51.2180254) # coordinates of Lublin
+
+> # xy coordinates of firms - SpatialPoints class object
+> loc<-SpatialPoints(firms[,12:13], proj4string=CRS("+proj=longlat +datum=NAD83"))
+
+> head(loc)
+class       : SpatialPoints 
+features    : 1 
+extent      : 22, 22, 51, 51  (xmin, xmax, ymin, ymax)
+crs         : +proj=longlat +datum=NAD83 +no_defs 
+
+> # vector distance of all points from the centre - Lublin
+> dist<-spDistsN1(loc, crds.Lublin, longlat = TRUE)
+
+> # colour palette
+> library(wesanderson)
+
+> cols<-wes_palette(n=8, name="Darjeeling1", type="continuous")
+
+> cols	# Figure of palette colours 
+
+> # a point map of the distance between the point and the centre
+> summary(dist)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+      0      28      57      56      82     141 
+
+> brks<-c(0, 2, 25, 50, 75, 100, 125, 150)
+
+> lubelskie.voi<- voi[voi$jpt_nazwa_=="lubelskie",] # creating a map subset
+
+> lubelskie.pov<-pov[50:73,] # creating a map subset
+
+> plot(lubelskie.voi) # Fig.4.6b
+
+> plot(lubelskie.pov, add=TRUE)
+
+> points(firms[,12:13], col=cols[findInterval(dist, brks)], 
++ pch=21, bg=cols[findInterval(dist, brks)], cex=0.2)
+
+> legend("bottomleft", legend=brks, pt.bg=cols, bty="n", pch=21)
+
+> title(main="Distance from the centre")
+
+> savePlot(filename="dists", type="jpeg")
+
+> # checking the affiliation of points to areas
+> lubelskie.pov<-pov[50:73,] # creating a map subset
+
+> loc<-SpatialPoints(firms[,12:13], proj4string=CRS("+proj=longlat +datum=NAD83"))
+
+> # rewriting points to areas (poviats)
+> firms.over<-over(loc, lubelskie.pov) # from sp:: package
+
+> dim(firms.over)
+[1] 37378    32
+
+> names(firms.over) # the same result will be obtained from names (pov)
+ [1] "iip_przest" "iip_identy" "iip_wersja" "jpt_sjr_ko" "jpt_kod_je"
+ [6] "jpt_nazwa_" "jpt_nazw01" "jpt_organ_" "jpt_orga01" "jpt_jor_id"
+[11] "wazny_od"   "wazny_do"   "jpt_wazna_" "wersja_od"  "wersja_do" 
+[16] "jpt_powier" "jpt_kj_iip" "jpt_kj_i01" "jpt_kj_i02" "jpt_kod_01"
+[21] "id_bufora_" "id_bufor01" "id_technic" "jpt_opis"   "jpt_sps_ko"
+[26] "gra_ids"    "status_obi" "opis_bledu" "typ_bledu"  "a"         
+[31] "SHOCK"      "lagg"      
+
+> head(firms.over$jpt_nazwa_)
+[1] powiat pu\xb3awski    powiat lubelski       powiat bi\xb3gorajski
+[4] powiat kra\x9cnicki   powiat bialski        powiat \xb3ukowski   
+370 Levels: powiat aleksandrowski powiat augustowski ... powiat \xa3\xf3d\x9f
+
+> the.same<-zerodist(loc)
+
+> head(the.same)
+     [,1] [,2]
+[1,]   48   53
+[2,]   73   83
+[3,]    3   84
+[4,]   73   95
+[5,]   83   95
+[6,]   73  209
+
+> # draw points on the map, options: random | regular | stratified
+> # | nonaligned | hexagonal | clustered | fibonacci
+> 
+> pl<-readOGR(".", "Panstwo ..." ... [TRUNCATED] 
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+OGR data source with driver: ESRI Shapefile 
+Source: "/home/rsb/presentations/kk_spatial_book", layer: "Panstwo"
+with 1 features
+It has 29 fields
+
+> pl<-spTransform(pl, CRS("+proj=longlat +datum=NAD83"))
+Warning: PROJ support is provided by the sf and terra packages among others
+
+> newpoints<-spsample(pl, 20000, type="stratified") 
+
+> newpoints.df<-as.data.frame(newpoints)		# class conversion
+
+> newpoints.m<-as.matrix(newpoints.df)		# class conversion
+
+> # checking the affiliation of a point to a region and choosing a key variable
+> where<-over(newpoints, voi) 	
+
+> newpoints.df$voi<-where$jpt_nazwa_ 	# variable about the region
+
+> head(newpoints.df)
+  x1 x2          voi
+1 23 49 podkarpackie
+2 23 49 podkarpackie
+3 23 49 podkarpackie
+4 23 49 podkarpackie
+5 23 49 podkarpackie
+6 22 49 podkarpackie
+
+> dim(newpoints.df)
+[1] 19993     3
+
+> regions<-levels(newpoints.df$voi) 	# voivodeship names
+
+> regions
+ [1] "dolno\x9cl\xb9skie"     "kujawsko-pomorskie"     "lubelskie"             
+ [4] "lubuskie"               "mazowieckie"            "ma\xb3opolskie"        
+ [7] "opolskie"               "podkarpackie"           "podlaskie"             
+[10] "pomorskie"              "warmi\xf1sko-mazurskie" "wielkopolskie"         
+[13] "zachodniopomorskie"     "\x9cl\xb9skie"          "\x9cwi\xeatokrzyskie"  
+[16] "\xb3\xf3dzkie"         
+
+> # loading poviat data that has the identifier of region centres
+>  unempl<-read.csv("unemp2018.csv", header=TRUE, dec=",", sep=";", stringsAsFactors .... [TRUNCATED] 
+
+> # adding centrod coordinates to the data set
+> unempl$crds<-coordinates(pov) # added as a matrix in the data frame	
+
+> # selection of relevant column - name voivodeship and geographical coordinates
+> capitals.xy<-unempl[unempl$core_city==1, c(6,102)] 
+
+> # case correction 
+> capitals.xy$region <- iconv(capitals.xy$region, "CP1250", "UTF-8")
+
+> capitals.xy$region<-tolower(capitals.xy$region) 
+
+> capitals.xy<-capitals.xy[1:16,]
+
+> head(capitals.xy)
+          region crds.1 crds.2
+13  podkarpackie     23     50
+71     lubelskie     23     51
+94   małopolskie     20     50
+119      łódzkie     19     52
+122     lubuskie     16     52
+151  mazowieckie     21     52
+
+> # joining data sets by key-variable
+> dist<-merge(newpoints.df, capitals.xy, by.x="voi", by.y="region", all.x=TRUE, sort=FALSE)
+
+> names(dist)
+[1] "voi"  "x1"   "x2"   "crds"
+
+> head(dist)
+           voi x1 x2 crds.1 crds.2
+1 podkarpackie 22 50     23     50
+2 podkarpackie 21 50     23     50
+3 podkarpackie 23 49     23     50
+4 podkarpackie 23 50     23     50
+5 podkarpackie 22 50     23     50
+6 podkarpackie 22 50     23     50
+
+> # counting the distance between coordinate pairs
+> library(raster)
+
+> for(i in 1:dim(dist)[1]){
++ dist$dist[i]<-pointDistance(dist[i,2:3],dist$crds[i,], lonlat=FALSE)}
+
+> head(dist)
+           voi x1 x2 crds.1 crds.2 dist
+1 podkarpackie 22 50     23     50 1.07
+2 podkarpackie 21 50     23     50 1.57
+3 podkarpackie 23 49     23     50 0.49
+4 podkarpackie 23 50     23     50 0.37
+5 podkarpackie 22 50     23     50 0.99
+6 podkarpackie 22 50     23     50 0.68
+
+> # value graph in point
+> library(fields)
+
+> quilt.plot(dist[,2:3], dist$dist) # Fig.4.8a
+
+> library(cluster)
+
+> library(factoextra)
+
+> library(wesanderson) 
+
+> library(GISTools)
+
+> # coordinate clustering
+> c2<-clara(firms[,12:13], 5, metric="euclidean", sampsize=1000)
+
+> # a combination of clustering and membership verification results
+> points<-cbind(firms[,12:13], firms.over$jpt_nazwa_, c2$clustering)
+
+> head(points)
+  coords.x1 coords.x2 firms.over$jpt_nazwa_ c2$clustering
+1        22        51    powiat pu\xb3awski             1
+2        22        51       powiat lubelski             2
+3        23        50 powiat bi\xb3gorajski             3
+4        22        51   powiat kra\x9cnicki             1
+5        23        52        powiat bialski             4
+6        22        52    powiat \xb3ukowski             1
+
+> names(points)<-c("xx", "yy", "poviat", "cluster")
+
+> head(points)
+  xx yy                poviat cluster
+1 22 51    powiat pu\xb3awski       1
+2 22 51       powiat lubelski       2
+3 23 50 powiat bi\xb3gorajski       3
+4 22 51   powiat kra\x9cnicki       1
+5 23 52        powiat bialski       4
+6 22 52    powiat \xb3ukowski       1
+
+> # summary of points belonging to poviats according to clusters from CLARA
+> # i.e. what poviats are points from the first CLARA cluster
+> unique(poi .... [TRUNCATED] 
+[1] powiat pu\xb3awski  powiat kra\x9cnicki powiat \xb3ukowski 
+[4] powiat rycki        powiat opolski      powiat lubartowski 
+[7] powiat radzy\xf1ski powiat lubelski    
+370 Levels: powiat aleksandrowski powiat augustowski ... powiat \xa3\xf3d\x9f
+
+> # checking how many points there are within polygons (poviats)
+> how.many.pts.in.pov<-poly.counts(loc, lubelskie.pov)# from GISTools:: 
+
+> # point density in relation to the surface - Fig.4.8b
+> choropleth(lubelskie.pov, how.many.pts.in.pov/poly.areas(lubelskie.pov))
+Warning in RGEOSMiscFunc(spgeom, byid, "rgeos_area") :
+  Spatial object is not projected; GEOS expects planar coordinates
+
+> NN<-1500 # number of observations
+
+> samm<-spsample(pov, n=NN, type="random") # spatial sample
+
+> val<-rnorm(NN, mean=100, sd=20) # drawn values
+
+> samm.df<-as.data.frame(samm)
+
+> samm.df$val<-val
+
+> head(samm.df)
+   x  y val
+1 16 52 104
+2 21 51  77
+3 23 51 102
+4 23 54 127
+5 16 52  90
+6 15 53 122
+
+> brks<-c(40,60,80,100,120,140,160)
+
+> cols<-wes_palette(n=8, name="BottleRocket2", type="continuous")
+
+> plot(pov, border="grey80") 
+
+> points(samm.df[,1:2], pch=".", cex=5, col=cols[findInterval(samm.df[,3], brks)])
+
+> # checking the point's affiliation with the area 
+> samm.over.pov<-over(samm, pov) # do poviats
+
+> samm.over.voi<-over(samm, voi) # do voivodeship
+
+> samm.df$pov<-samm.over.pov$jpt_nazwa_
+
+> samm.df$voi<-samm.over.voi$jpt_nazwa_
+
+> head(samm.df)
+   x  y val                     pov                    voi
+1 16 52 104 powiat zielonog\xf3rski               lubuskie
+2 21 51  77         powiat radomski            mazowieckie
+3 23 51 102         powiat zamojski              lubelskie
+4 23 54 127           powiat olecki warmi\xf1sko-mazurskie
+5 16 52  90 powiat zielonog\xf3rski               lubuskie
+6 15 53 122  powiat choszcze\xf1ski     zachodniopomorskie
+
+> # aggregation of point data
+> result<-aggregate(samm.df$val, by=list(samm.df$voi), sum)
+
+> voi.df<-as.data.frame(voi)
+
+> voi.df$id<-1:16
+
+> voi.df<-voi.df[,c(6,30)]
+
+> voi.df.m<-merge(voi.df, result, by.x="jpt_nazwa_", by.y="Group.1")
+
+> # aggregate data sorting
+> library(doBy)
+
+> result.sort<-orderBy(~id, data=voi.df.m)
+
+> # colourful voivodeship map
+> library(RColorBrewer)
+
+> library(classInt)
+
+> variable<-result.sort$x
+
+> summary(variable)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+   3815    7522    8732    9392   11670   16803 
+
+> compartments<-8
+
+> colors<-brewer.pal(compartments, "BuPu") # wybór kolorów
+
+> class<-classIntervals(variable, compartments, style="pretty")
+
+> color.table<-findColours(class, colors) 
+
+> plot(voi, col=color.table)
+
+> legend("bottomleft", legend=names(attr(color.table, 
++ "table")), fill=attr(color.table, "palette"), cex=0.75, bty="n")
+
+> title(main="Sums according to voivodeship")
+
+> # closest neighbours of generated points
+> samm.knn<-knearneigh(samm, k=2) # class knn object k=2
+
+> samm.nb<-knn2nb(samm.knn) 
+
+> samm.listw<-nb2listw(samm.nb) # conversion class nb to listw
+
+> samm.lag<-lag.listw(samm.listw, samm.df$val) # spatial lag
+
+> dev.off()
+null device 
+          1 
+
+> plot(samm.df$val, samm.lag)
+
+> #4.4 Tessellation
+> 
+> library(spatstat)
+
+> library(rgdal)
+
+> library(maptools)
+
+> # option A – reading a map with planar projection
+> voi<-readOGR(".", "wojewodztwa") # 16 units 
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+OGR data source with driver: ESRI Shapefile 
+Source: "/home/rsb/presentations/kk_spatial_book", layer: "wojewodztwa"
+with 16 features
+It has 29 fields
+
+> lub.voi<-voi[voi$jpt_nazwa_=="lubelskie",] # creating a map slice
+
+> lub.owin<-as(lub.voi, "owin") # from rgdal:: 
+
+> # option B – conversion of projection from sperical to planar
+> #voi<-readOGR(".", "wojewodztwa") # 16 units 
+> #voi<-spTransform(voi, CRS("+proj=lo ..." ... [TRUNCATED] 
+Warning: PROJ support is provided by the sf and terra packages among others
+
+> lub.voi<- voi[voi$jpt_nazwa_=="lubelskie",] # creating a map slice
+
+> lub.owin<-as(lub.voi, "owin") # from rgdal::
+
+> # extraction of unique points and random sampling
+> cord<-as.matrix(cbind(firms$coords.x1, firms$coords.x2))
+
+> cord1<-unique(cord)
+
+> x<-sample(1:length(cord1), 100)
+
+> x<-order(x)
+
+> cord2<-cord1[x,]
+
+> cord2.sp<-SpatialPoints(cord2) # points in sp class spherical
+
+> proj4string(cord2.sp)<-CRS("+proj=longlat +datum=NAD83") # spherical
+
+> cord2.sp<-spTransform(cord2.sp, CRS("+proj=merc +datum=NAD83")) #planar
+
+> # construction of the spatial object and tessellation
+> lub.ppp<-ppp(x=cord2.sp@coords[,1], y=cord2.sp@coords[,2], window=lub.owin)
+
+> lub.tes<-dirichlet(lub.ppp) # Dirichlet tessellation
+
+> plot(lub.tes, main=" Tessellation for n = 100 points ") # Fig.4.9a
+
+> plot(lub.ppp, add=TRUE, pch=".", col="darkblue", cex=2)
+
+> degAxis(1)
+
+> degAxis(2)
+
+> tes.poly<-as(lub.tes, "SpatialPolygons") 
+
+> proj4string(tes.poly)<-CRS("+proj=merc +datum=NAD83") # spherical
+
+> tes.poly<-spTransform(tes.poly, CRS("+proj=longlat +datum=NAD83"))
+Warning: PROJ support is provided by the sf and terra packages among others
+
+> library(tripack)
+
+> lub.vm <- voronoi.mosaic(cord2[,1], cord2[,2])
+
+> plot(lub.vm) # Fig.4.9b
+
+> voi<-readOGR(".", "wojewodztwa") # 16 units 
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+OGR data source with driver: ESRI Shapefile 
+Source: "/home/rsb/presentations/kk_spatial_book", layer: "wojewodztwa"
+with 16 features
+It has 29 fields
+
+> voi<-spTransform(voi, CRS("+proj=longlat +datum=NAD83")) #spherical
+Warning: PROJ support is provided by the sf and terra packages among others
+
+> library(tripack)
+
+> lub.vm <- voronoi.mosaic(cord2[,1], cord2[,2])
+
+> plot(lub.vm)
+
+> voi<-readOGR(".", "wojewodztwa") # 16 units 
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+OGR data source with driver: ESRI Shapefile 
+Source: "/home/rsb/presentations/kk_spatial_book", layer: "wojewodztwa"
+with 16 features
+It has 29 fields
+
+> voi<-spTransform(voi, CRS("+proj=longlat +datum=NAD83")) #spherical
+Warning: PROJ support is provided by the sf and terra packages among others
+
+> lub.voi<-voi[voi$jpt_nazwa_=="lubelskie",] # creating a map slice
+
+> plot(lub.voi, add=TRUE, lwd=2, border="red")
+
+> lub.vp <- voronoi.polygons(lub.vm)
+
+> head(lub.vp)
+[[1]]
+      x  y
+[1,] 32 55
+[2,] 24 52
+[3,] 23 52
+[4,] 23 52
+[5,] 23 52
+[6,] 24 52
+
+[[2]]
+      x  y
+[1,] 22 51
+[2,] 22 51
+[3,] 22 51
+
+[[3]]
+      x  y
+[1,] 23 52
+[2,] 23 52
+[3,] 23 52
+[4,] 23 52
+[5,] 23 52
+
+[[4]]
+      x  y
+[1,] 22 52
+[2,] 22 52
+[3,] 22 52
+[4,] 22 52
+[5,] 22 52
+[6,] 22 52
+[7,] 22 52
+
+[[5]]
+      x  y
+[1,] 23 51
+[2,] 23 51
+[3,] 23 51
+[4,] 23 51
+[5,] 23 51
+[6,] 23 52
+[7,] 23 52
+[8,] 23 51
+
+[[6]]
+      x  y
+[1,] 23 51
+[2,] 23 51
+[3,] 23 51
+[4,] 23 51
+[5,] 23 51
+
+
+> #4.5 Spatial statistics
+> 
+> # reading poviat data
+> unempl<-read.csv("unemp2018.csv", header=TRUE, dec=",", sep=";")
+
+> names(unempl)
+  [1] "code1"           "code2"           "poviat"          "ID_MAP"         
+  [5] "subregion"       "region"          "subregion_nr"    "region_nr"      
+  [9] "core_city"       "dist"            "population_2006" "population_2013"
+ [13] "X2011.01"        "X2011.02"        "X2011.03"        "X2011.04"       
+ [17] "X2011.05"        "X2011.06"        "X2011.07"        "X2011.08"       
+ [21] "X2011.09"        "X2011.10"        "X2011.11"        "X2011.12"       
+ [25] "X2012.01"        "X2012.02"        "X2012.03"        "X2012.04"       
+ [29] "X2012.05"        "X2012.06"        "X2012.07"        "X2012.08"       
+ [33] "X2012.09"        "X2012.10"        "X2012.11"        "X2012.12"       
+ [37] "X2013.01"        "X2013.02"        "X2013.03"        "X2013.04"       
+ [41] "X2013.05"        "X2013.06"        "X2013.07"        "X2013.08"       
+ [45] "X2013.09"        "X2013.10"        "X2013.11"        "X2013.12"       
+ [49] "X2014.01"        "X2014.02"        "X2014.03"        "X2014.04"       
+ [53] "X2014.05"        "X2014.06"        "X2014.07"        "X2014.08"       
+ [57] "X2014.09"        "X2014.10"        "X2014.11"        "X2014.12"       
+ [61] "X2015.01"        "X2015.02"        "X2015.03"        "X2015.04"       
+ [65] "X2015.05"        "X2015.06"        "X2015.07"        "X2015.08"       
+ [69] "X2015.09"        "X2015.10"        "X2015.11"        "X2015.12"       
+ [73] "X2016.01"        "X2016.02"        "X2016.03"        "X2016.04"       
+ [77] "X2016.05"        "X2016.06"        "X2016.07"        "X2016.08"       
+ [81] "X2016.09"        "X2016.10"        "X2016.11"        "X2016.12"       
+ [85] "X2017.01"        "X2017.02"        "X2017.03"        "X2017.04"       
+ [89] "X2017.05"        "X2017.06"        "X2017.07"        "X2017.08"       
+ [93] "X2017.09"        "X2017.10"        "X2017.11"        "X2017.12"       
+ [97] "X2018.01"        "X2018.02"        "X2018.03"        "X2018.04"       
+[101] "X2018.05"       
+
+> # map of poviats and spatial weight matrix
+> pov<-readOGR(".", "powiaty") # 380 units
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+Warning: OGR support is provided by the sf and terra packages among others
+OGR data source with driver: ESRI Shapefile 
+Source: "/home/rsb/presentations/kk_spatial_book", layer: "powiaty"
+with 380 features
+It has 29 fields
+
+> pov<-spTransform(pov, CRS("+proj=longlat +datum=NAD83"))
+Warning: PROJ support is provided by the sf and terra packages among others
+
+> cont.nb<-poly2nb(as(pov, "SpatialPolygons")) 	# from the spdep:: package
+
+> cont.listw<-nb2listw(cont.nb, style="W")	# from the spdep:: package
+
+> #4.5.1 Global statistics
+> #4.5.1.1 Global Moran I statistics
+> 
+> moran(unempl$X2011.06, cont.listw, length(cont.nb), Szero(cont.listw))
+$I
+[1] 0.47
+
+$K
+[1] 2.8
+
+
+> moran.test(unempl$X2011.06, cont.listw)
+
+	Moran I test under randomisation
+
+data:  unempl$X2011.06  
+weights: cont.listw    
+
+Moran I statistic standard deviate = 14, p-value <0.0000000000000002
+alternative hypothesis: greater
+sample estimates:
+Moran I statistic       Expectation          Variance 
+           0.4713           -0.0026            0.0012 
+
+
+> m3<-moran.test(unempl$X2011.06, cont.listw, randomisation=FALSE)
+
+> m3
+
+	Moran I test under normality
+
+data:  unempl$X2011.06  
+weights: cont.listw    
+
+Moran I statistic standard deviate = 14, p-value <0.0000000000000002
+alternative hypothesis: greater
+sample estimates:
+Moran I statistic       Expectation          Variance 
+           0.4713           -0.0026            0.0012 
+
+
+> #pvalue for I Morana (normal distribution)
+> pval.norm<-1-pnorm(m3$statistic, mean=0, sd=1)
+
+> pval.norm
+Moran I statistic standard deviate 
+                                 0 
+
+> moran.mc(unempl$X2011.06, cont.listw, 99)
+
+	Monte-Carlo simulation of Moran I
+
+data:  unempl$X2011.06 
+weights: cont.listw  
+number of simulations + 1: 100 
+
+statistic = 0.5, observed rank = 100, p-value = 0.01
+alternative hypothesis: greater
+
+
+> variable<-unempl$X2011.06
+
+> variable.std<-((variable-mean(variable))/sd(variable))
+
+> unempl$poviat <- iconv(unempl$poviat, "CP1250", "UTF-8")
+
+> moran.plot(variable.std, cont.listw, labels=as.character(unempl$poviat), pch=19, quiet=F) # fig.10a
+Potentially influential observations of
+	 lm(formula = wx ~ x) :
+
+                       dfb.1_ dfb.x dffit   cov.r   cook.d hat    
+Powiat m.Krosno         0.18  -0.25  0.31_*  0.95_*  0.05   0.01  
+Powiat przysuski       -0.01  -0.03 -0.03    1.02_*  0.00   0.01  
+Powiat radomski        -0.02  -0.06 -0.07    1.02_*  0.00   0.02_*
+Powiat szydłowiecki    -0.01  -0.05 -0.05    1.04_*  0.00   0.03_*
+Powiat m.Kraków         0.01  -0.02  0.02    1.02_*  0.00   0.01  
+Powiat m.Radom          0.18   0.20  0.27_*  0.95_*  0.04   0.01  
+Powiat m. st. Warszawa -0.01   0.02 -0.03    1.02_*  0.00   0.01  
+Powiat poznański        0.01  -0.02  0.02    1.02_*  0.00   0.01  
+Powiat m.Poznań        -0.10   0.20 -0.22_*  1.00    0.02   0.01  
+Powiat starachowicki    0.13   0.02  0.13    0.97_*  0.01   0.00  
+Powiat m.Słupsk         0.12  -0.06  0.14    0.98_*  0.01   0.00  
+Powiat koszaliński      0.00   0.00  0.00    1.02_*  0.00   0.01  
+Powiat giżycki          0.13   0.00  0.13    0.97_*  0.01   0.00  
+Powiat iławski          0.12  -0.08  0.14    0.98_*  0.01   0.00  
+Powiat kętrzyński       0.01   0.01  0.02    1.02_*  0.00   0.01  
+Powiat piski           -0.04  -0.12 -0.12    1.02_*  0.01   0.02_*
+Powiat m.Jelenia Góra   0.14  -0.11  0.18    0.97_*  0.02   0.00  
+Powiat łobeski         -0.02  -0.05 -0.05    1.02_*  0.00   0.01  
+Powiat pyrzycki        -0.02  -0.05 -0.05    1.02_*  0.00   0.01  
+Powiat węgorzewski      0.01   0.01  0.01    1.02_*  0.00   0.01  
+Powiat m.Elbląg         0.14   0.03  0.14    0.97_*  0.01   0.00  
+Powiat bartoszycki      0.06   0.14  0.16    1.01    0.01   0.02_*
+Powiat braniewski       0.06   0.17  0.18    1.02_*  0.02   0.02_*
+Powiat białogardzki     0.00  -0.01 -0.01    1.02_*  0.00   0.02_*
+Powiat choszczeński     0.01   0.01  0.01    1.02_*  0.00   0.01  
+Powiat kołobrzeski      0.19  -0.15  0.24_*  0.94_*  0.03   0.00  
+Powiat m.Koszalin       0.18  -0.12  0.22    0.95_*  0.02   0.00  
+Powiat górowski        -0.12  -0.21 -0.24_*  0.99    0.03   0.01  
+Powiat m.Katowice      -0.01   0.02 -0.02    1.02_*  0.00   0.01  
+Powiat złotoryjski     -0.01  -0.02 -0.02    1.02_*  0.00   0.01  
+Powiat lipnowski       -0.02  -0.05 -0.06    1.02_*  0.00   0.02_*
+Powiat włocławski       0.00   0.00  0.00    1.02_*  0.00   0.01  
+Powiat m.Włocławek      0.16   0.11  0.19    0.96_*  0.02   0.00  
+
+> x<-unempl$X2011.06 			# extracting the variable
+
+> zx<-scale(x) 				# variable standardisation
+
+> mean(zx) 					# average control
+[1] 0.000000000000000096
+
+> sd(zx) 					# standard deviation control
+[1] 1
+
+> wzx<-lag.listw(cont.listw, zx) 	# spatial lag of x
+
+> morlm<-lm(wzx~zx) 			# regression   
+
+> slope<-morlm$coefficients[2] 		# directional coefficient
+
+> intercept<-morlm$coefficients[1] 	# constant term
+
+> par(pty="s") 				# square chart window
+
+> plot(zx, wzx, xlab="zx",ylab="spatial lag zx", pch="*") 
+
+> abline(intercept, slope) 		# regression line
+
+> abline(h=0, lty=2) 			# horizontal line at y = 0
+
+> abline(v=0, lty=2) 			# vertical line at x = 0
+
+> # map of belonging to the quarters of the Moran scatter chart
+> # creating a variable for analysis
+> x<-unempl$X2011.06 # creating a variable for an .... [TRUNCATED] 
+
+> zx<-scale(x) # variable standardisation
+
+> wzx<-lag.listw(cont.listw, zx) # spatial lag of x
+
+> cond1<-ifelse(zx>=0 & wzx>=0, 1,0) # I quarter
+
+> cond2<-ifelse(zx>=0 & wzx<0, 2,0) # II quarter
+
+> cond3<-ifelse(zx<0 & wzx<0, 3,0) # III quarter
+
+> cond4<-ifelse(zx<0 & wzx>=0, 4,0) # IV quarter
+
+> cond.all<-as.data.frame(cond1+cond2+cond3+cond4) 
+
+> # chart - colour map, Fig.10b
+> brks<-c(1,2,3,4)
+
+> cols<-c("grey25", "grey60", "grey85", "grey45")
+
+> par(mar=c(5.1,1,4.1,1))
+
+> plot(pov, col=cols[findInterval(cond.all$V1, brks)])
+
+> legend("bottomleft", legend=c("I quarter - HH - high surrounded by high ", " II quarter - LH - low surrounded by high ", " III quarter - LL - low su ..." ... [TRUNCATED] 
+
+> title(main="Regions belonging to quarters from the Moran scatter plot")
+
+> #4.5.1.2 Global Geary C statistics
+> 
+> geary(unempl$X2011.06, cont.listw, length(cont.nb), length(cont.nb)-1, Szero(cont.listw))
+$C
+[1] 0.53
+
+$K
+[1] 2.8
+
+
+> geary.test(spNamedVec("X2011.06", unempl), cont.listw)
+
+	Geary C test under randomisation
+
+data:  spNamedVec("X2011.06", unempl) 
+weights: cont.listw 
+
+Geary C statistic standard deviate = 12, p-value <0.0000000000000002
+alternative hypothesis: Expectation greater than statistic
+sample estimates:
+Geary C statistic       Expectation          Variance 
+           0.5331            1.0000            0.0015 
+
+
+> geary.mc(unempl$X2011.06, cont.listw, 99)
+
+	Monte-Carlo simulation of Geary C
+
+data:  unempl$X2011.06 
+weights: cont.listw 
+number of simulations + 1: 100 
+
+statistic = 0.5, observed rank = 1, p-value = 0.01
+alternative hypothesis: greater
+
+
+> #4.5.1.3 Join-count statistics
+> 
+> summary(unempl$X2011.06)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+      3      11      14      15      19      35 
+
+> head(unempl$X2011.06)
+[1] 23 19 18 19 13 12
+
+> variable.f<-factor(cut(unempl$X2011.06, breaks=c(0,10, 20, 40), labels=c("low", "medium", "high")))
+
+> head(variable.f)
+[1] high   medium medium medium medium medium
+Levels: low medium high
+
+> # graphic parameters
+> brks1<-c(0, 10, 20, 40) 
+
+> cols<-c("green", "blue", "red")
+
+> # scatter plot of subsequent values of the tested variable - Fig.4.11a
+> plot(unempl$X2011.06, bg=cols[findInterval(unempl$X2011.06, brks1)], pch=21 .... [TRUNCATED] 
+
+> abline(h=c(10,20,40), lty=3)
+
+> # spatial distribution of values into three distinguished groups - Fig.4.11b
+> plot(pov, col=cols[findInterval(unempl$X2011.06, brks1)])
+
+> plot(voi, add=TRUE, lwd=2)
+
+> title(main="Unemployment in June 2011")
+
+> legend("bottomleft", legend=c("low", "medium", "high"), leglabs(brks1), fill=cols, bty="n")
+
+> joincount.test(variable.f, cont.listw)
+
+	Join count test under nonfree sampling
+
+data:  variable.f 
+weights: cont.listw 
+
+Std. deviate for low = 6, p-value = 0.0000000004
+alternative hypothesis: greater
+sample estimates:
+Same colour statistic           Expectation              Variance 
+                 16.1                   8.8                   1.4 
+
+
+	Join count test under nonfree sampling
+
+data:  variable.f 
+weights: cont.listw 
+
+Std. deviate for medium = 4, p-value = 0.00001
+alternative hypothesis: greater
+sample estimates:
+Same colour statistic           Expectation              Variance 
+                 75.3                  65.9                   4.8 
+
+
+	Join count test under nonfree sampling
+
+data:  variable.f 
+weights: cont.listw 
+
+Std. deviate for high = 9, p-value <0.0000000000000002
+alternative hypothesis: greater
+sample estimates:
+Same colour statistic           Expectation              Variance 
+                 16.5                   7.1                   1.2 
+
+
+> joincount.mc(variable.f, cont.listw, 99)
+
+	Monte-Carlo simulation of join-count statistic
+
+data:  variable.f 
+weights: cont.listw 
+number of simulations + 1: 100 
+
+Join-count statistic for low = 16, rank of observed statistic = 100,
+p-value = 0.01
+alternative hypothesis: greater
+sample estimates:
+    mean of simulation variance of simulation 
+                   8.9                    1.6 
+
+
+	Monte-Carlo simulation of join-count statistic
+
+data:  variable.f 
+weights: cont.listw 
+number of simulations + 1: 100 
+
+Join-count statistic for medium = 75, rank of observed statistic = 100,
+p-value = 0.01
+alternative hypothesis: greater
+sample estimates:
+    mean of simulation variance of simulation 
+                  66.2                    3.8 
+
+
+	Monte-Carlo simulation of join-count statistic
+
+data:  variable.f 
+weights: cont.listw 
+number of simulations + 1: 100 
+
+Join-count statistic for high = 16, rank of observed statistic = 100,
+p-value = 0.01
+alternative hypothesis: greater
+sample estimates:
+    mean of simulation variance of simulation 
+                   7.1                    1.2 
+
+
+> joincount.multi(variable.f, cont.listw)
+              Joincount Expected Variance z-value
+low:low           16.07     8.76     1.42    6.14
+medium:medium     75.28    65.90     4.84    4.27
+high:high         16.50     7.13     1.19    8.58
+medium:low        39.47    48.46     5.87   -3.71
+high:low           4.94    16.01     2.67   -6.77
+high:medium       37.74    43.74     5.35   -2.59
+Jtot              82.15   108.21     8.31   -9.04
+
+> #4.5.2. Local spatial autocorrelation statistics
+> #4.5.2.2 Local Moran I statistics (LISA)
+> 
+> locM<-localmoran(spNamedVec("X2011.06", unempl), co .... [TRUNCATED] 
+
+> oid1<-order(unempl$ID_MAP)
+
+> try(printCoefmat(data.frame(locM[oid1,], row.names=unempl$poviat[oid1]), check.names=FALSE))
+Error in data.frame(locM[oid1, ], row.names = unempl$poviat[oid1]) : 
+  duplicate row.names: Powiat tomaszowski, Powiat krośnieński, Powiat brzeski, Powiat ostrowski, Powiat opolski, Powiat grodziski, Powiat nowodworski, Powiat bielski, Powiat średzki, Powiat świdnicki
+
+> # duplicate names vector
+> dupli<-c("Powiat tomaszowski", "Powiat krośnieński", "Powiat brzeski", "Powiat ostrowski", "Powiat opolski", "Powiat grod ..." ... [TRUNCATED] 
+
+> # change data type from factor to character
+> unempl$poviat<-as.character(unempl$poviat)
+
+> # loop that adds an apostrophe to the second instance of names
+> for(i in 1: length(dupli)){
++ a<-which(unempl$poviat==dupli[i])[2]
++ unempl$poviat[ .... [TRUNCATED] 
+
+> # restoring the original class variable
+> unempl$poviat<-as.factor(unempl$poviat)
+
+> # code generating a list of local Moran statistics with region names assigned
+> locM<-localmoran(spNamedVec("X2011.06", unempl), cont.listw)
+
+> oid1<-order(unempl$ID_MAP)
+
+> locMorMat<-printCoefmat(data.frame(locM[oid1,], row.names=unempl$poviat[oid1]), check.names=FALSE)
+                                          Ii          E.Ii        Var.Ii
+Powiat niżański                -0.3485339269 -0.0054875124  0.3410634111
+Powiat przemyski                0.2907039563 -0.0012676270  0.0676359069
+Powiat przeworski               0.0434154710 -0.0008608674  0.0459514187
+Powiat ropczycko-sędziszowski   0.0147546053 -0.0013321401  0.1000378541
+Powiat rzeszowski              -0.1942798799 -0.0003600748  0.0133522524
+Powiat sanocki                 -0.4775076062 -0.0006369994  0.0478691449
+Powiat stalowowolski           -0.0038531637 -0.0000082383  0.0005148535
+Powiat strzyżowski              0.4542218565 -0.0029586393  0.1843548553
+Powiat tarnobrzeski             0.0383268272 -0.0000834200  0.0052129454
+Powiat leski                    0.1623344832 -0.0012047151  0.2280153024
+Powiat m.Krosno                -1.8692117590 -0.0047722269  1.8047920318
+Powiat m.Rzeszów                0.4775122751 -0.0044085714  1.6678716532
+Powiat m.Przemyśl               0.3596954802 -0.0007105588  0.2698205001
+Powiat m.Tarnobrzeg             0.0515708865 -0.0000539338  0.0102197658
+Powiat łosicki                  0.3523193049 -0.0011083269  0.1394905015
+Powiat nowodworski              0.0731370570 -0.0002370572  0.0178214720
+Powiat ostrołęcki               0.4101782151 -0.0007590606  0.0313471207
+Powiat ostrowski               -0.1831622113 -0.0009690788  0.0517219279
+Powiat otwocki                  1.2937340632 -0.0033004604  0.2473615384
+Powiat piaseczyński             1.7993768707 -0.0042905552  0.3212473229
+Powiat płocki                   0.7804188744 -0.0026738355  0.1424651371
+Powiat płoński                  0.1713651679 -0.0003801859  0.0177176701
+Powiat pruszkowski              2.1734145936 -0.0052795166  0.4949465462
+Powiat przasnyski               0.0677932024 -0.0000183844  0.0011489252
+Powiat przysuski                1.8772800774 -0.0114882547  0.6066980311
+Powiat miński                   0.6575534727 -0.0019385064  0.1209132539
+Powiat mławski                 -0.1263424146 -0.0000834200  0.0052129454
+Powiat pułtuski                 0.2935981464 -0.0027671690  0.1724573190
+Powiat radomski                 2.4565546689 -0.0167836891  0.7693292057
+Powiat siedlecki                0.4601159566 -0.0014945962  0.0616772929
+Powiat sierpecki                1.3444394798 -0.0040120590  0.3004794604
+Powiat sokołowski               0.4128489758 -0.0025292531  0.1897080941
+Powiat sochaczewski             0.2364329206 -0.0012306788  0.0507996725
+Powiat szydłowiecki             5.3851397866 -0.0322768338  2.3487427846
+Powiat warszawski zachodni      1.5800243901 -0.0063709506  0.3956196906
+Powiat węgrowski               -0.0183901963 -0.0000062411  0.0003900389
+Powiat białobrzeski            -0.1537773075 -0.0000678763  0.0063966405
+Powiat ciechanowski             0.2029289983 -0.0003136040  0.0235743008
+Powiat garwoliński              0.3410298761 -0.0007305309  0.0389993972
+Powiat gostyniński              0.2798588820 -0.0016062037  0.1205857194
+Powiat grodziski                1.4408992209 -0.0051502925  0.3202128453
+Powiat grójecki                 0.3550438906 -0.0038345017  0.1416963281
+Powiat kozienicki               0.0156299686 -0.0004920673  0.0262752839
+Powiat zwoleński                0.3379631502 -0.0012676270  0.0951993571
+Powiat legionowski              0.1956857666 -0.0003948321  0.0246655220
+Powiat lipski                  -0.0194701137 -0.0000011680  0.0000729969
+Powiat wołomiński               0.2051902376 -0.0002953638  0.0222035438
+Powiat wyszkowski               0.0217291779 -0.0000062411  0.0003334227
+Powiat żuromiński               0.6172688933 -0.0035714776  0.2224044404
+Powiat bialski                 -0.0038052228 -0.0000005023  0.0000234174
+Powiat biłgorajski             -0.1926071590 -0.0050226695  0.2065374440
+Powiat chełmski                 0.0248242378 -0.0003460944  0.0184833614
+Powiat hrubieszowski           -0.0399391732 -0.0016787224  0.2111580270
+Powiat janowski                 0.0536632515 -0.0002953638  0.0222035438
+Powiat krasnostawski           -0.0150118313 -0.0000025711  0.0001933379
+Powiat kraśnicki                0.0063286677 -0.0000539338  0.0033704444
+Powiat lubartowski             -0.0518323900 -0.0000268578  0.0014348139
+Powiat lubelski                 0.2945497512 -0.0011687022  0.0433026209
+Powiat łęczyński               -0.0360124791 -0.0016361617  0.1020855908
+Powiat łukowski                 0.2007441450 -0.0012306788  0.0768173426
+Powiat opolski                  0.0095432685 -0.0001310031  0.0081860462
+Powiat parczewski              -0.0059572926 -0.0000539338  0.0040553766
+Powiat puławski                -0.0515807230 -0.0013594352  0.0848432110
+Powiat radzyński                0.0440050769 -0.0001616059  0.0152282502
+Powiat rycki                    0.0981504197 -0.0003269187  0.0245748680
+Powiat świdnicki                0.2003536447 -0.0006829646  0.0513209699
+Powiat tomaszowski              0.0441597785 -0.0002370572  0.0223364037
+Powiat m.Biała Podlaska         0.0004307083 -0.0000025711  0.0009770284
+Powiat włodawski               -0.1564433661 -0.0033607936  0.3156769589
+Powiat zamojski                 0.0229943952 -0.0001193107  0.0074554999
+Powiat m.Lublin                 0.5339550275 -0.0021820767  0.4125954874
+Powiat m.Chełm                  0.0113057363 -0.0000025711  0.0009770284
+Powiat m.Zamość                 0.0341065658 -0.0000678763  0.0257912546
+Powiat brzeski                  0.1931347661 -0.0009368075  0.0703779655
+Powiat bocheński                0.4375517375 -0.0026200501  0.1633125664
+Powiat chrzanowski              0.1515044884 -0.0002103056  0.0158107665
+Powiat dąbrowski               -0.4110118407 -0.0013321401  0.0831419777
+Powiat gorlicki                -0.0028129031 -0.0003269187  0.0411771408
+Powiat krakowski                0.4463978780 -0.0011083269  0.0457548631
+Powiat limanowski              -0.1365855412 -0.0002257397  0.0169708386
+Powiat miechowski               0.3170437895 -0.0015645784  0.0834553156
+Powiat myślenicki               0.1913507550 -0.0002654099  0.0141755051
+Powiat nowosądecki             -0.0895950139 -0.0001113218  0.0069563493
+Powiat nowotarski               0.1868489680 -0.0010495526  0.0788390802
+Powiat olkuski                  0.0541919462 -0.0000415925  0.0022219443
+Powiat oświęcimski              0.5136472569 -0.0007305309  0.0456216066
+Powiat proszowicki              0.5615973204 -0.0012306788  0.0656669126
+Powiat suski                    0.4264425611 -0.0024400573  0.2294045924
+Powiat tarnowski                0.1290642436 -0.0005087106  0.0210136183
+Powiat tatrzański               0.4417244905 -0.0012942564  0.4911809026
+Powiat wadowicki                0.3372571517 -0.0009368075  0.0500011520
+Powiat m.Tarnów                 0.4757939888 -0.0030980518  1.1736124544
+Powiat wielicki                 0.6329748716 -0.0012306788  0.1158438478
+Powiat m.Kraków                 1.1718293118 -0.0080389909  1.0047419266
+Powiat m.Nowy Sącz             -0.1832167347 -0.0020992855  0.7960538247
+Powiat m.Piotrków Trybunalski   0.3297404473 -0.0011083269  0.4206974168
+Powiat m.Skierniewice           1.0123033514 -0.0018605185  0.7056816481
+Powiat bełchatowski             0.1697387377 -0.0016361617  0.1020855908
+Powiat kutnowski                0.1298828250 -0.0004531724  0.0340612001
+Powiat łaski                   -0.1527187489 -0.0003460944  0.0216218891
+Powiat łęczycki                 0.0164562836 -0.0000539338  0.0040553766
+Powiat łowicki                  0.0813523684 -0.0015645784  0.0834553156
+Powiat łódzki wschodni          0.0787794825 -0.0009923795  0.0619577950
+Powiat opoczyński               0.0827297578 -0.0000486079  0.0036549342
+Powiat pabianicki              -0.0285513438 -0.0000183844  0.0009821528
+Powiat pajęczański              0.1410826665 -0.0004691500  0.0352615422
+Powiat piotrkowski              0.1132517659 -0.0006829646  0.0364618044
+Powiat poddębicki               0.0360610965 -0.0002103056  0.0098024639
+Powiat radomszczański           0.0005220750 -0.0000039026  0.0002084920
+Powiat rawski                   0.6688618649 -0.0040593262  0.3810223880
+Powiat sieradzki                0.2227961852 -0.0004691500  0.0218616847
+Powiat skierniewicki            0.5803299952 -0.0038345017  0.2040690439
+Powiat tomaszowski'            -0.1023420983 -0.0002534267  0.0118118516
+Powiat wieluński                0.3649485499 -0.0015645784  0.0834553156
+Powiat zduńskowolski            0.0401067280 -0.0003269187  0.0411771408
+Powiat wieruszowski             0.3759555899 -0.0005926353  0.0370151455
+Powiat zgierski                -0.0689771556 -0.0000932417  0.0049808815
+Powiat brzeziński               0.0379361406 -0.0000217131  0.0016326986
+Powiat m.Łódź                   0.0857549638 -0.0014945962  0.1880323956
+Powiat żarski                   0.1484869876 -0.0002827148  0.0266372145
+Powiat wschowski                0.0052457427 -0.0000062411  0.0004693015
+Powiat m.Zielona Góra          -0.8596275029 -0.0035092735  0.6626643849
+Powiat m.Gorzów Wielkopolski    0.5976645661 -0.0034040664  1.2891419046
+Powiat gorzowski               -0.1157187686 -0.0007305309  0.0456216066
+Powiat krośnieński             -0.0626639361 -0.0002534267  0.0190517844
+Powiat międzyrzecki            -0.5465310306 -0.0024034419  0.1498435162
+Powiat nowosolski              -0.2497142302 -0.0061703328  0.3832391978
+Powiat słubicki                -0.0098273760 -0.0000115122  0.0014504802
+Powiat strzelecko-drezdenecki   0.3763032243 -0.0045988114  0.2445571997
+Powiat sulęciński               0.0152600306 -0.0001396577  0.0105002006
+Powiat świebodziński            0.1149094605 -0.0034040664  0.2551000383
+Powiat żagański                 0.0025451450 -0.0093018979  0.4923224000
+Powiat brzozowski               0.5149076795 -0.0033607936  0.2518681229
+Powiat bieszczadzki             0.2842593559 -0.0024919720  0.3131972539
+Powiat dębicki                 -0.1889884043 -0.0007796983  0.0486897150
+Powiat jarosławski              0.2969045700 -0.0009690788  0.1219821812
+Powiat kolbuszowski             0.0380062454 -0.0000767626  0.0047969572
+Powiat jasielski                0.0574128206 -0.0001751692  0.0131696718
+Powiat krośnieński'             0.1692796497 -0.0050970337  0.3813217945
+Powiat leżajski                 0.0541648442 -0.0007105588  0.0533930513
+Powiat lubaczowski             -0.0257891277 -0.0001113218  0.0104904732
+Powiat łańcucki                 0.0619009653 -0.0001751692  0.0220668297
+Powiat mielecki                -0.0128114879 -0.0001193107  0.0074554999
+Powiat makowski                 0.6656906604 -0.0070425547  0.5258407754
+Powiat brzeski'                 0.0122071978 -0.0020653330  0.1549835458
+Powiat chodzieski              -0.0262871673 -0.0000268578  0.0025311738
+Powiat ostrzeszowski            0.7070200783 -0.0024400573  0.1521207341
+Powiat m.Radom                  2.8903839461 -0.0034653350  1.3122640588
+Powiat żyrardowski              0.0640523365 -0.0000082383  0.0006194806
+Powiat m.Ostrołęka              0.0167432502 -0.0000025711  0.0009770284
+Powiat m. st. Warszawa          1.9034045545 -0.0097235102  0.5144180964
+Powiat nowotomyski              1.3067365484 -0.0059496544  0.2757248055
+Powiat obornicki                0.3201777686 -0.0013594352  0.1020848072
+Powiat nyski                    0.2421836971 -0.0007105588  0.0533930513
+Powiat oleski                   0.5432039912 -0.0030980518  0.1649976693
+Powiat leszczyński              0.5606681408 -0.0033004604  0.1757419639
+Powiat międzychodzki            0.0523921028 -0.0048966476  0.3664041929
+Powiat strzelecki               0.6277537403 -0.0020180954  0.1075972190
+Powiat m.Opole                  0.6934654179 -0.0060884853  2.2995379627
+Powiat głubczycki              -0.1288841796 -0.0002534267  0.0319227760
+Powiat krapkowicki              0.3334053797 -0.0026200501  0.2462823555
+Powiat pilski                  -0.4199006419 -0.0011687022  0.0623638210
+Powiat m.Siedlce                0.7368808928 -0.0025292531  0.9586852884
+Powiat namysłowski             -0.1685552754 -0.0007590606  0.0474019298
+Powiat czarnkowsko-trzcianecki  0.0424880025 -0.0001851552  0.0098899053
+Powiat ostrowski'               0.5170751796 -0.0018605185  0.0992114789
+Powiat opolski'                 0.1076780194 -0.0005498724  0.0227129775
+Powiat prudnicki               -0.0866835352 -0.0004531724  0.0340612001
+Powiat kędzierzyńsko-kozielski  0.2341197814 -0.0004691500  0.0293060500
+Powiat kluczborski              0.0021703934 -0.0000000346  0.0000026018
+Powiat m.Płock                 -0.4946249960 -0.0006369994  0.2419055720
+Powiat sejneński               -0.2675249496 -0.0019848086  0.3753694653
+Powiat złotowski                0.5826665559 -0.0007105588  0.0443752410
+Powiat krotoszyński             0.3651022535 -0.0017093462  0.1066439955
+Powiat wysokomazowiecki         0.3709541683 -0.0033004604  0.2055834533
+Powiat buski                    0.1891541226 -0.0038345017  0.2872326651
+Powiat pleszewski               0.2478417857 -0.0006369994  0.0296782299
+Powiat średzki                  0.0856567532 -0.0000217131  0.0020463301
+Powiat śremski                  1.0226699198 -0.0039461134  0.2955600900
+Powiat m.Kalisz                 0.9626574915 -0.0036160818  0.4539660127
+Powiat m.Konin                 -0.1328315007 -0.0002953638  0.1122050741
+Powiat jędrzejowski             0.0324302784 -0.0000678763  0.0051036663
+Powiat gostyński                0.5384156254 -0.0009368075  0.0584914909
+Powiat łomżyński               -0.2194430736 -0.0009923795  0.0462191863
+Powiat m.Leszno                 1.3677642588 -0.0039461134  1.4936058022
+Powiat kępiński                 0.2806867255 -0.0060884853  0.4550408455
+Powiat kolski                  -0.0535950479 -0.0000415925  0.0022219443
+Powiat augustowski              0.1573145639 -0.0004531724  0.0283084394
+Powiat białostocki             -0.1494503519 -0.0002257397  0.0105216930
+Powiat moniecki                -0.1204005932 -0.0004691500  0.0352615422
+Powiat kazimierski              0.3180044132 -0.0008304669  0.0518574190
+Powiat kielecki                 0.0668433614 -0.0009141725  0.0307169356
+Powiat m.Suwałki                0.5786005304 -0.0008304669  0.3153153520
+Powiat sokólski                 0.0244997588 -0.0001751692  0.0220668297
+Powiat koniński                 0.0469705581 -0.0004158786  0.0171805437
+Powiat kościański               1.5302714035 -0.0038345017  0.2387205527
+Powiat zambrowski               0.0080106906 -0.0000039026  0.0003678034
+Powiat m.Białystok             -0.1488134801 -0.0006829646  0.2593492863
+Powiat turecki                  0.1923711187 -0.0009923795  0.0745486821
+Powiat wągrowiecki             -0.0987106728 -0.0009690788  0.0517219279
+Powiat bielski                  0.5833920900 -0.0025292531  0.2377691687
+Powiat m.Łomża                 -0.0191443419 -0.0000025711  0.0009770284
+Powiat grajewski                0.7866700763 -0.0030567762  0.1904510836
+Powiat suwalski                -0.7238297835 -0.0028064473  0.1748983605
+Powiat poznański                1.5060046495 -0.0102600881  0.3415223283
+Powiat grodziski'               1.7073747333 -0.0030980518  0.2910745175
+Powiat wolsztyński              0.7815775542 -0.0069550949  0.3689849409
+Powiat wrzesiński               0.1347740325 -0.0001851552  0.0115692396
+Powiat rawicki                  0.0923099229 -0.0014945962  0.0932660686
+Powiat szamotulski              0.8150344967 -0.0012942564  0.0971966442
+Powiat słupecki                 0.0084216980 -0.0000268578  0.0020195392
+Powiat m.Poznań                 3.8198754579 -0.0099007683  3.7250423858
+Powiat gnieźnieński            -0.0366801249 -0.0002103056  0.0131404098
+Powiat jarociński               0.1834585463 -0.0002654099  0.0165825465
+Powiat kaliski                  0.6654990072 -0.0034040664  0.1812399050
+Powiat hajnowski                0.3501954008 -0.0011687022  0.1470802660
+Powiat siemiatycki              0.6535744603 -0.0020992855  0.1119168642
+Powiat kolneński                0.7208735624 -0.0016062037  0.1511351764
+Powiat gdański                 -0.2084771638 -0.0040593262  0.2159852622
+Powiat lęborski                 0.1795119571 -0.0008608674  0.0810634907
+Powiat kościerski              -0.0036922207 -0.0000834200  0.0062723053
+Powiat włoszczowski            -0.0483879468 -0.0000415925  0.0025992368
+Powiat pucki                    0.5416921068 -0.0009923795  0.1878666654
+Powiat słupski                  0.8609041189 -0.0033607936  0.2518681229
+Powiat m.Kielce                -0.4840238399 -0.0017841318  0.6767604845
+Powiat starachowicki            0.1822981175 -0.0000369323  0.0023080213
+Powiat staszowski              -0.0196798806 -0.0006829646  0.0364618044
+Powiat konecki                  1.3553581264 -0.0037885660  0.2016336815
+Powiat m.Sopot                  3.2754501609 -0.0100796276  1.8908100492
+Powiat chojnicki                0.4128467135 -0.0006183588  0.0386208028
+Powiat człuchowski              1.5772489158 -0.0058924012  0.4404728036
+Powiat opatowski                0.0761630614 -0.0032578533  0.1734806534
+Powiat ostrowiecki              0.3974842061 -0.0020653330  0.1942474254
+Powiat m.Słupsk                -0.5938536374 -0.0007305309  0.2773989379
+Powiat starogardzki             0.0200057586 -0.0010836947  0.0676527444
+Powiat skarżyski                2.3949064551 -0.0082951807  0.7753027959
+Powiat kartuski                 0.3875218182 -0.0018605185  0.0992114789
+Powiat malborski                1.1321547825 -0.0060305664  0.4507383700
+Powiat nowodworski'             1.1258558897 -0.0100050654  0.7448113687
+Powiat pińczowski               0.4275390465 -0.0027124481  0.2034113757
+Powiat sandomierski            -0.0075003968 -0.0007796983  0.0486897150
+Powiat bytowski                 0.8192836823 -0.0029586393  0.1375247681
+Powiat szczecinecki             2.7287640808 -0.0086243486  0.4567738650
+Powiat świdwiński               2.4490730769 -0.0075002810  0.5597593020
+Powiat jaworski                 0.8227313336 -0.0032578533  0.1734806534
+Powiat kamiennogórski           0.8495425625 -0.0020653330  0.2596872247
+Powiat stargardzki              0.9814049377 -0.0019058854  0.0886837377
+Powiat m.Wrocław                1.3926051541 -0.0072567738  0.9076928274
+Powiat koszaliński              1.4368502292 -0.0078134375  0.4141638399
+Powiat częstochowski           -0.0547399971 -0.0004531724  0.0211174887
+Powiat elbląski                 2.5992702618 -0.0075002810  0.3976899548
+Powiat ełcki                    1.0555198766 -0.0061703328  0.3832391978
+Powiat giżycki                  0.0466495771 -0.0000025711  0.0001373600
+Powiat iławski                 -0.6975975713 -0.0011083269  0.0691887727
+Powiat kętrzyński               2.1127319377 -0.0103662559  0.7714180826
+Powiat lidzbarski               3.2508960725 -0.0101848601  0.7580582051
+Powiat mrągowski                0.5817846299 -0.0004531724  0.0340612001
+Powiat nidzicki                 0.6987883528 -0.0022311852  0.1391281233
+Powiat nowomiejski              0.4423580686 -0.0015352861  0.1444724716
+Powiat olecki                   0.3664442655 -0.0024034419  0.2259704500
+Powiat olsztyński               0.7581215311 -0.0012676270  0.0590223287
+Powiat piski                    2.3050000362 -0.0191820613  1.0051256848
+Powiat ostródzki                1.0508629336 -0.0024919720  0.1327994435
+Powiat szczycieński             1.4394114234 -0.0068931815  0.4278239156
+Powiat m.Jelenia Góra          -0.9710254762 -0.0017841318  0.6767604845
+Powiat wałecki                  0.6986471584 -0.0021474585  0.1339184875
+Powiat łobeski                  1.8013490408 -0.0122682766  0.7573069429
+Powiat m.Świnoujście           -0.6615726440 -0.0025292531  0.3178709598
+Powiat dzierżoniowski           0.2369480605 -0.0012676270  0.0791206778
+Powiat głogowski               -0.0497096646 -0.0000217131  0.0013569442
+Powiat pyrzycki                 1.6782862293 -0.0116808585  1.4545556950
+Powiat tczewski                -0.1220626680 -0.0001396577  0.0087267710
+Powiat sławieński               1.4094063537 -0.0025821032  0.4880382985
+Powiat zgorzelecki             -0.2770735355 -0.0002953638  0.0278286394
+Powiat m.Siemianowice Śląskie   0.2658754086 -0.0003948321  0.0371966653
+Powiat m.Świętochłowice         0.0077725499 -0.0000011680  0.0001471681
+Powiat m.Tychy                  2.5727287318 -0.0068066571  0.6371339484
+Powiat m.Zabrze                 0.3197277564 -0.0005498724  0.0413253418
+Powiat m.Żory                   0.8394338435 -0.0012942564  0.0971966442
+Powiat bielski'                 0.8859596669 -0.0026200501  0.1633125664
+Powiat będziński                0.0472560874 -0.0000415925  0.0015428178
+Powiat cieszyński               0.9603239117 -0.0020992855  0.1575259949
+Powiat m.Ruda Śląska            0.7560586521 -0.0035092735  0.1868216379
+Powiat gołdapski                0.4610316574 -0.0026738355  0.2513245865
+Powiat węgorzewski              1.8901328913 -0.0093018979  1.1611044416
+Powiat m.Elbląg                 0.3463124888 -0.0001113218  0.0422975880
+Powiat m.Olsztyn               -0.9925383894 -0.0054103419  2.0448066498
+Powiat bartoszycki              4.1919708864 -0.0141169921  1.3116882469
+Powiat braniewski               5.1603925230 -0.0179628610  1.6625185318
+Powiat działdowski              0.5585449211 -0.0049700765  0.2642018824
+Powiat białogardzki             2.5409017090 -0.0139051748  1.2922847048
+Powiat choszczeński             2.0281116047 -0.0100050654  0.7448113687
+Powiat goleniowski              0.2818684238 -0.0008091634  0.0431937962
+Powiat drawski                  2.5242525305 -0.0084589641  0.4480892976
+Powiat gryficki                 0.7334938247 -0.0022311852  0.2098111779
+Powiat kamieński                0.2089084006 -0.0042419566  0.5322043628
+Powiat gryfiński                0.6343606791 -0.0037885660  0.2838048270
+Powiat kołobrzeski             -1.3825398867 -0.0016361617  0.1228311345
+Powiat m.Koszalin              -1.1153064360 -0.0011083269  0.4206974168
+Powiat m.Szczecin              -0.6015775422 -0.0019385064  0.1823423735
+Powiat górowski                -0.6165522640 -0.0089599210  0.4743862521
+Powiat wejherowski              0.0580040803 -0.0000217131  0.0020463301
+Powiat sztumski                 0.8757985955 -0.0065992386  0.4097016377
+Powiat m.Gdańsk                 1.2612776142 -0.0074100149  0.5530728840
+Powiat m.Gdynia                 1.7341702991 -0.0074100149  0.5530728840
+Powiat kwidzyński               0.0193532569 -0.0000025711  0.0001933379
+Powiat m.Sosnowiec              0.1475353428 -0.0000678763  0.0051036663
+Powiat kłobucki                 0.2385698663 -0.0006369994  0.0397842938
+Powiat gliwicki                 0.9096755850 -0.0023524627  0.0870598751
+Powiat lubliniecki              0.1430864024 -0.0005087106  0.0317759984
+Powiat mikołowski               1.6456544156 -0.0048966476  0.2603177230
+Powiat myszkowski              -0.0798279559 -0.0015352861  0.1152697693
+Powiat pszczyński               1.6916700192 -0.0062289174  0.2885855946
+Powiat raciborski               0.7966946111 -0.0040593262  0.2526601791
+Powiat rybnicki                 0.7079174335 -0.0011687022  0.0623638210
+Powiat tarnogórski              0.2218930491 -0.0012306788  0.0507996725
+Powiat bieruńsko-lędziński      2.0522028790 -0.0072567738  0.4502252987
+Powiat wodzisławski             0.8344152017 -0.0015645784  0.1472245991
+Powiat zawierciański           -0.0328378346 -0.0002534267  0.0118118516
+Powiat żywiecki                 0.1982011158 -0.0001396577  0.0131603450
+Powiat m.Jastrzębie-Zdrój       0.9732872324 -0.0029992491  0.2248544176
+Powiat m.Chorzów                0.3071615898 -0.0011083269  0.0691887727
+Powiat m.Bielsko-Biała          1.4672452137 -0.0063709506  1.1995867830
+Powiat m.Bytom                 -0.3566665102 -0.0012676270  0.0791206778
+Powiat m.Dąbrowa Górnicza       0.0182281866 -0.0013594352  0.1279472015
+Powiat m.Częstochowa            0.0235860542 -0.0009923795  0.1878666654
+Powiat m.Gliwice                0.9824965659 -0.0052795166  0.6616885382
+Powiat m.Piekary Śląskie        0.0288854345 -0.0000415925  0.0031274463
+Powiat m.Katowice               1.6895634150 -0.0090304889  0.3698473958
+Powiat m.Jaworzno               0.4496257104 -0.0016361617  0.0872673453
+Powiat m.Mysłowice              1.2460040686 -0.0033004604  0.3100286662
+Powiat m.Rybnik                 1.1771674973 -0.0048966476  0.3664041929
+Powiat myśliborski              0.3960968815 -0.0003136040  0.0195927233
+Powiat policki                 -0.0043217268 -0.0001113218  0.0104904732
+Powiat złotoryjski              1.6171874160 -0.0094752881  0.7057503979
+Powiat m.Legnica               -0.7737578991 -0.0020180954  0.7653286058
+Powiat jeleniogórski            1.0653187133 -0.0036792212  0.2756439626
+Powiat oleśnicki                0.0140945581 -0.0000011680  0.0000544542
+Powiat bolesławiecki           -0.3114254891 -0.0003269187  0.0174596083
+Powiat kłodzki                  1.2908171816 -0.0061703328  0.7726431012
+Powiat golubsko-dobrzyński      0.8211309000 -0.0024034419  0.1802942897
+Powiat lubański                 0.3675965101 -0.0056208742  0.7042295596
+Powiat trzebnicki               0.0675046588 -0.0002953638  0.0137659003
+Powiat m.Wałbrzych od 2013      0.2285615669 -0.0009141725  0.1730749076
+Powiat grudziądzki              0.8944879538 -0.0079724174  0.3687138886
+Powiat inowrocławski            0.8547366982 -0.0038995120  0.2075152928
+Powiat wołowski                 0.1724824333 -0.0020653330  0.1549835458
+Powiat aleksandrowski           1.0189094917 -0.0012676270  0.0951993571
+Powiat wrocławski               0.4585888682 -0.0080389909  0.3717678738
+Powiat ząbkowicki               0.9321315595 -0.0041262073  0.3872740658
+Powiat brodnicki               -0.1535311251 -0.0000539338  0.0028812072
+Powiat bydgoski                -0.3107145934 -0.0004311905  0.0178128274
+Powiat oławski                  0.0162018942 -0.0015645784  0.1174656001
+Powiat polkowicki              -0.2765123378 -0.0028064473  0.2104407083
+Powiat średzki'                 0.0420175954 -0.0005087106  0.0271635498
+Powiat milicki                 -0.1514511135 -0.0001996539  0.0150101281
+Powiat strzeliński              0.0333053110 -0.0001522856  0.0095157281
+Powiat świdnicki'               0.0249693865 -0.0000932417  0.0058266494
+Powiat legnicki                 0.0237655081 -0.0020653330  0.0960877264
+Powiat lubiński                -0.4876186674 -0.0025292531  0.1897080941
+Powiat lwówecki                 1.5082790815 -0.0054875124  0.5143382540
+Powiat lipnowski                2.2222522121 -0.0149802730  0.6879238631
+Powiat wąbrzeski                0.8695967954 -0.0026738355  0.2005235101
+Powiat sępoleński               0.6567689855 -0.0052255921  0.2777133842
+Powiat włocławski               1.6507294715 -0.0087913342  0.4062520828
+Powiat świecki                  0.4046835225 -0.0011434043  0.0532449830
+Powiat toruński                 0.2762649949 -0.0007590606  0.0313471207
+Powiat żniński                  0.6961513049 -0.0041262073  0.2568057361
+Powiat m.Bydgoszcz             -0.0807798802 -0.0039461134  0.7448272321
+Powiat mogileński               0.5679674359 -0.0029586393  0.2218189251
+Powiat m.Grudziądz              1.4567390744 -0.0038995120  0.7360656690
+Powiat m.Toruń                 -0.6559371119 -0.0039461134  1.4936058022
+Powiat m.Włocławek              1.4583854993 -0.0012676270  0.2399074709
+Powiat radziejowski             1.1134740077 -0.0050970337  0.3813217945
+Powiat nakielski                0.5028924504 -0.0034653350  0.2596755333
+Powiat rypiński                 0.5802560577 -0.0007105588  0.0533930513
+Powiat tucholski                0.3862572169 -0.0012676270  0.0951993571
+Powiat chełmiński               0.8718931669 -0.0040120590  0.3004794604
+Powiat wałbrzyski               0.4900137665 -0.0009141725  0.0570795230
+Powiat zielonogórski            0.0065871359 -0.0000039026  0.0001819401
+                                        Z.Ii Pr.z....E.Ii..
+Powiat niżański                -0.5874018621           0.56
+Powiat przemyski                1.1226695050           0.26
+Powiat przeworski               0.2065485907           0.84
+Powiat ropczycko-sędziszowski   0.0508611299           0.96
+Powiat rzeszowski              -1.6782045664           0.09
+Powiat sanocki                 -2.1795795247           0.03
+Powiat stalowowolski           -0.1694517581           0.87
+Powiat strzyżowski              1.0647812728           0.29
+Powiat tarnobrzeski             0.5319925057           0.59
+Powiat leski                    0.3424836690           0.73
+Powiat m.Krosno                -1.3878250442           0.17
+Powiat m.Rzeszów                0.3731594113           0.71
+Powiat m.Przemyśl               0.6938324188           0.49
+Powiat m.Tarnobrzeg             0.5106673376           0.61
+Powiat łosicki                  0.9462985677           0.34
+Powiat nowodworski              0.5496308302           0.58
+Powiat ostrołęcki               2.3210083850           0.02
+Powiat ostrowski               -0.8011146075           0.42
+Powiat otwocki                  2.6078670632           0.01
+Powiat piaseczyński             3.1822676464           0.00
+Powiat płocki                   2.0747170734           0.04
+Powiat płoński                  1.2902732432           0.20
+Powiat pruszkowski              3.0968281805           0.00
+Powiat przasnyski               2.0005897117           0.05
+Powiat przysuski                2.4248919948           0.02
+Powiat miński                   1.8965861010           0.06
+Powiat mławski                 -1.7487218637           0.08
+Powiat pułtuski                 0.7136521199           0.48
+Powiat radomski                 2.8198591945           0.00
+Powiat siedlecki                1.8587161684           0.06
+Powiat sierpecki                2.4599594478           0.01
+Powiat sokołowski               0.9536758823           0.34
+Powiat sochaczewski             1.0544651087           0.29
+Powiat szydłowiecki             3.5348786254           0.00
+Powiat warszawski zachodni      2.5221590850           0.01
+Powiat węgrowski               -0.9308613558           0.35
+Powiat białobrzeski            -1.9218723672           0.05
+Powiat ciechanowski             1.3237175793           0.19
+Powiat garwoliński              1.7305844666           0.08
+Powiat gostyniński              0.8105439921           0.42
+Powiat grodziski                2.5554288225           0.01
+Powiat grójecki                 0.9533843370           0.34
+Powiat kozienicki               0.0994594777           0.92
+Powiat zwoleński                1.0994569768           0.27
+Powiat legionowski              1.2485026496           0.21
+Powiat lipski                  -2.2787153535           0.02
+Powiat wołomiński               1.3790189942           0.17
+Powiat wyszkowski               1.1903382980           0.23
+Powiat żuromiński               1.3164616819           0.19
+Powiat bialski                 -0.7862366456           0.43
+Powiat biłgorajski             -0.4127599266           0.68
+Powiat chełmski                 0.1851392374           0.85
+Powiat hrubieszowski           -0.0832618940           0.93
+Powiat janowski                 0.3621176121           0.72
+Powiat krasnostawski           -1.0794457029           0.28
+Powiat kraśnicki                0.1099395982           0.91
+Powiat lubartowski             -1.3676606369           0.17
+Powiat lubelski                 1.4210891871           0.16
+Powiat łęczyński               -0.1075912929           0.91
+Powiat łukowski                 0.7287315933           0.47
+Powiat opolski                  0.1069254732           0.91
+Powiat parczewski              -0.0927008226           0.93
+Powiat puławski                -0.1724166872           0.86
+Powiat radzyński                0.3579066594           0.72
+Powiat rycki                    0.6281895462           0.53
+Powiat świdnicki                0.8874169572           0.37
+Powiat tomaszowski              0.2970608319           0.77
+Powiat m.Biała Podlaska         0.0138616374           0.99
+Powiat włodawski               -0.2724609771           0.79
+Powiat zamojski                 0.2676894131           0.79
+Powiat m.Lublin                 0.8346677383           0.40
+Powiat m.Chełm                  0.3617795553           0.72
+Powiat m.Zamość                 0.2127968519           0.83
+Powiat brzeski                  0.7315492563           0.46
+Powiat bocheński                1.0892119602           0.28
+Powiat chrzanowski              1.2065670724           0.23
+Powiat dąbrowski               -1.4208043236           0.16
+Powiat gorlicki                -0.0122509653           0.99
+Powiat krakowski                2.0920903263           0.04
+Powiat limanowski              -1.0467300905           0.30
+Powiat miechowski               1.1028848625           0.27
+Powiat myślenicki               1.6093958315           0.11
+Powiat nowosądecki             -1.0728850722           0.28
+Powiat nowotarski               0.6691948444           0.50
+Powiat olkuski                  1.1505390408           0.25
+Powiat oświęcimski              2.4082242129           0.02
+Powiat proszowicki              2.1963542834           0.03
+Powiat suski                    0.8954418580           0.37
+Powiat tarnowski                0.8938485530           0.37
+Powiat tatrzański               0.6321226730           0.53
+Powiat wadowicki                1.5124319419           0.13
+Powiat m.Tarnów                 0.4420539383           0.66
+Powiat wielicki                 1.8633461970           0.06
+Powiat m.Kraków                 1.1770807879           0.24
+Powiat m.Nowy Sącz             -0.2029967461           0.84
+Powiat m.Piotrków Trybunalski   0.5100874133           0.61
+Powiat m.Skierniewice           1.2072680932           0.23
+Powiat bełchatowski             0.5363706306           0.59
+Powiat kutnowski                0.7062108846           0.48
+Powiat łaski                   -1.0362396731           0.30
+Powiat łęczycki                 0.2592610049           0.80
+Powiat łowicki                  0.2870227358           0.77
+Powiat łódzki wschodni          0.3204806052           0.75
+Powiat opoczyński               1.3692320789           0.17
+Powiat pabianicki              -0.9104524769           0.36
+Powiat pajęczański              0.7538150359           0.45
+Powiat piotrkowski              0.5966739130           0.55
+Powiat poddębicki               0.3663504415           0.71
+Powiat radomszczański           0.0364269290           0.97
+Powiat rawski                   1.0901567739           0.28
+Powiat sieradzki                1.5100088233           0.13
+Powiat skierniewicki            1.2931431210           0.20
+Powiat tomaszowski'            -0.9393307974           0.35
+Powiat wieluński                1.2687104980           0.20
+Powiat zduńskowolski            0.1992575651           0.84
+Powiat wieruszowski             1.9571804742           0.05
+Powiat zgierski                -0.9760334738           0.33
+Powiat brzeziński               0.9393958504           0.35
+Powiat m.Łódź                   0.2012087699           0.84
+Powiat żarski                   0.9115281611           0.36
+Powiat wschowski                0.2424361740           0.81
+Powiat m.Zielona Góra          -1.0516880269           0.29
+Powiat m.Gorzów Wielkopolski    0.5293875232           0.60
+Powiat gorzowski               -0.5383542307           0.59
+Powiat krośnieński             -0.4521576662           0.65
+Powiat międzyrzecki            -1.4056647966           0.16
+Powiat nowosolski              -0.3934071879           0.69
+Powiat słubicki                -0.2577345353           0.80
+Powiat strzelecko-drezdenecki   0.7702346770           0.44
+Powiat sulęciński               0.1502841334           0.88
+Powiat świebodziński            0.2342497515           0.81
+Powiat żagański                 0.0168843818           0.99
+Powiat brzozowski               1.0326857595           0.30
+Powiat bieszczadzki             0.5123850679           0.61
+Powiat dębicki                 -0.8529451271           0.39
+Powiat jarosławski              0.8528720615           0.39
+Powiat kolbuszowski             0.5498551802           0.58
+Powiat jasielski                0.5018159293           0.62
+Powiat krośnieński'             0.2823856344           0.78
+Powiat leżajski                 0.2374845452           0.81
+Powiat lubaczowski             -0.2507034856           0.80
+Powiat łańcucki                 0.4178829905           0.68
+Powiat mielecki                -0.1469933691           0.88
+Powiat makowski                 0.9277174828           0.35
+Powiat brzeski'                 0.0362541890           0.97
+Powiat chodzieski              -0.5219619673           0.60
+Powiat ostrzeszowski            1.8190045745           0.07
+Powiat m.Radom                  2.5261858089           0.01
+Powiat żyrardowski              2.5738129626           0.01
+Powiat m.Ostrołęka              0.5357385143           0.59
+Powiat m. st. Warszawa          2.6673863455           0.01
+Powiat nowotomyski              2.4999020980           0.01
+Powiat obornicki                1.0063537615           0.31
+Powiat nyski                    1.0511746384           0.29
+Powiat oleski                   1.3449121585           0.18
+Powiat leszczyński              1.3452939459           0.18
+Powiat międzychodzki            0.0946431382           0.92
+Powiat strzelecki               1.9199181368           0.05
+Powiat m.Opole                  0.4613185224           0.64
+Powiat głubczycki              -0.7199369879           0.47
+Powiat krapkowicki              0.6771041815           0.50
+Powiat pilski                  -1.6767554658           0.09
+Powiat m.Siedlce                0.7551745998           0.45
+Powiat namysłowski             -0.7706978517           0.44
+Powiat czarnkowsko-trzcianecki  0.4291001968           0.67
+Powiat ostrowski'               1.6475271705           0.10
+Powiat opolski'                 0.7181285013           0.47
+Powiat prudnicki               -0.4672294845           0.64
+Powiat kędzierzyńsko-kozielski  1.3703417011           0.17
+Powiat kluczborski              1.3455702444           0.18
+Powiat m.Płock                 -1.0043693712           0.32
+Powiat sejneński               -0.4334117795           0.66
+Powiat złotowski                2.7693575187           0.01
+Powiat krotoszyński             1.1232459384           0.26
+Powiat wysokomazowiecki         0.8254164158           0.41
+Powiat buski                    0.3600930973           0.72
+Powiat pleszewski               1.4423488666           0.15
+Powiat średzki                  1.8940168341           0.06
+Powiat śremski                  1.8883615440           0.06
+Powiat m.Kalisz                 1.4341297082           0.15
+Powiat m.Konin                 -0.3956653868           0.69
+Powiat jędrzejowski             0.4549017093           0.65
+Powiat gostyński                2.2301100571           0.03
+Powiat łomżyński               -1.0161136409           0.31
+Powiat m.Leszno                 1.1223916486           0.26
+Powiat kępiński                 0.4251247768           0.67
+Powiat kolski                  -1.1361113967           0.26
+Powiat augustowski              0.9376920410           0.35
+Powiat białostocki             -1.4547810836           0.15
+Powiat moniecki                -0.6386786649           0.52
+Powiat kazimierski              1.4001042622           0.16
+Powiat kielecki                 0.3866060512           0.70
+Powiat m.Suwałki                1.0318799323           0.30
+Powiat sokólski                 0.1661062301           0.87
+Powiat koniński                 0.3615227232           0.72
+Powiat kościański               3.1398610973           0.00
+Powiat zambrowski               0.4179011850           0.68
+Powiat m.Białystok             -0.2908720592           0.77
+Powiat turecki                  0.7081976958           0.48
+Powiat wągrowiecki             -0.4297759067           0.67
+Powiat bielski                  1.2016045066           0.23
+Powiat m.Łomża                 -0.6123906150           0.54
+Powiat grajewski                1.8096108073           0.07
+Powiat suwalski                -1.7240761806           0.08
+Powiat poznański                2.5945705471           0.01
+Powiat grodziski'               3.1704001183           0.00
+Powiat wolsztyński              1.2981215479           0.19
+Powiat wrzesiński               1.2547293245           0.21
+Powiat rawicki                  0.3071580670           0.76
+Powiat szamotulski              2.6184208965           0.01
+Powiat słupecki                 0.1879993456           0.85
+Powiat m.Poznań                 1.9843020886           0.05
+Powiat gnieźnieński            -0.3181479698           0.75
+Powiat jarociński               1.4267246875           0.15
+Powiat kaliski                  1.5712173952           0.12
+Powiat hajnowski                0.9161786911           0.36
+Powiat siemiatycki              1.9599275946           0.05
+Powiat kolneński                1.8584158891           0.06
+Powiat gdański                 -0.4398521619           0.66
+Powiat lęborski                 0.6335172657           0.53
+Powiat kościerski              -0.0455668821           0.96
+Powiat włoszczowski            -0.9482892071           0.34
+Powiat pucki                    1.2520525100           0.21
+Powiat słupski                  1.7221075829           0.09
+Powiat m.Kielce                -0.5861995375           0.56
+Powiat starachowicki            3.7953361994           0.00
+Powiat staszowski              -0.0994864707           0.92
+Powiat konecki                  3.0268074392           0.00
+Powiat m.Sopot                  2.3893592807           0.02
+Powiat chojnicki                2.1039149488           0.04
+Powiat człuchowski              2.3853940631           0.02
+Powiat opatowski                0.1906818516           0.85
+Powiat ostrowiecki              0.9065525804           0.36
+Powiat m.Słupsk                -1.1261401601           0.26
+Powiat starogardzki             0.0810816564           0.94
+Powiat skarżyski                2.7293204916           0.01
+Powiat kartuski                 1.2362186333           0.22
+Powiat malborski                1.6953162546           0.09
+Powiat nowodworski'             1.3161398005           0.19
+Powiat pińczowski               0.9539701138           0.34
+Powiat sandomierski            -0.0304576082           0.98
+Powiat bytowski                 2.2172229537           0.03
+Powiat szczecinecki             4.0502870522           0.00
+Powiat świdwiński               3.2834399488           0.00
+Powiat jaworski                 1.9831192827           0.05
+Powiat kamiennogórski           1.6711459729           0.09
+Powiat stargardzki              3.3019373204           0.00
+Powiat m.Wrocław                1.4693178355           0.14
+Powiat koszaliński              2.2448155453           0.02
+Powiat częstochowski           -0.3735711294           0.71
+Powiat elbląski                 4.1336194688           0.00
+Powiat ełcki                    1.7149949724           0.09
+Powiat giżycki                  3.9805355880           0.00
+Powiat iławski                 -2.6478696440           0.01
+Powiat kętrzyński               2.4172700625           0.02
+Powiat lidzbarski               3.7455043061           0.00
+Powiat mrągowski                3.1547897881           0.00
+Powiat nidzicki                 1.8794148706           0.06
+Powiat nowomiejski              1.1678473837           0.24
+Powiat olecki                   0.7759277126           0.44
+Powiat olsztyński               3.1257642672           0.00
+Powiat piski                    2.3182483861           0.02
+Powiat ostródzki                2.8905240988           0.00
+Powiat szczycieński             2.2111959989           0.03
+Powiat m.Jelenia Góra          -1.1781875658           0.24
+Powiat wałecki                  1.9150075451           0.06
+Powiat łobeski                  2.0840574407           0.04
+Powiat m.Świnoujście           -1.1689302092           0.24
+Powiat dzierżoniowski           0.8468867900           0.40
+Powiat głogowski               -1.3488699828           0.18
+Powiat pyrzycki                 1.4012417519           0.16
+Powiat tczewski                -1.3051453696           0.19
+Powiat sławieński               2.0211762863           0.04
+Powiat zgorzelecki             -1.6591507569           0.10
+Powiat m.Siemianowice Śląskie   1.3806087690           0.17
+Powiat m.Świętochłowice         0.6407991380           0.52
+Powiat m.Tychy                  3.2316633820           0.00
+Powiat m.Zabrze                 1.5754998912           0.12
+Powiat m.Żory                   2.6966831889           0.01
+Powiat bielski'                 2.1988043821           0.03
+Powiat będziński                1.2041553574           0.23
+Powiat cieszyński               2.4248784087           0.02
+Powiat m.Ruda Śląska            1.7573288133           0.08
+Powiat gołdapski                0.9249638337           0.35
+Powiat węgorzewski              1.7627419697           0.08
+Powiat m.Elbląg                 1.6844182318           0.09
+Powiat m.Olsztyn               -0.6903150906           0.49
+Powiat bartoszycki              3.6725103521           0.00
+Powiat braniewski               4.0161377905           0.00
+Powiat działdowski              1.0963204752           0.27
+Powiat białogardzki             2.2473927504           0.02
+Powiat choszczeński             2.3615975666           0.02
+Powiat goleniowski              1.3601308410           0.17
+Powiat drawski                  3.7835844843           0.00
+Powiat gryficki                 1.6062058693           0.11
+Powiat kamieński                0.2921775543           0.77
+Powiat gryfiński                1.1978773990           0.23
+Powiat kołobrzeski             -3.9401174666           0.00
+Powiat m.Koszalin              -1.7178193658           0.09
+Powiat m.Szczecin              -1.4042553765           0.16
+Powiat górowski                -0.8821577319           0.38
+Powiat wejherowski              1.2827240529           0.20
+Powiat sztumski                 1.3785755873           0.17
+Powiat m.Gdańsk                 1.7059390944           0.09
+Powiat m.Gdynia                 2.3418135997           0.02
+Powiat kwidzyński               1.3920449899           0.16
+Powiat m.Sosnowiec              2.0661159749           0.04
+Powiat kłobucki                 1.1992723302           0.23
+Powiat gliwicki                 3.0910012058           0.00
+Powiat lubliniecki              0.8055454653           0.42
+Powiat mikołowski               3.2350209407           0.00
+Powiat myszkowski              -0.2306021708           0.82
+Powiat pszczyński               3.1606362156           0.00
+Powiat raciborski               1.5930546807           0.11
+Powiat rybnicki                 2.8394396061           0.00
+Powiat tarnogórski              0.9899546525           0.32
+Powiat bieruńsko-lędziński      3.0692929413           0.00
+Powiat wodzisławski             2.1787408842           0.03
+Powiat zawierciański           -0.2998132639           0.76
+Powiat żywiecki                 1.7289338023           0.08
+Powiat m.Jastrzębie-Zdrój       2.0588588029           0.04
+Powiat m.Chorzów                1.1719614638           0.24
+Powiat m.Bielsko-Biała          1.3454530288           0.18
+Powiat m.Bytom                 -1.2634878184           0.21
+Powiat m.Dąbrowa Górnicza       0.0547603625           0.96
+Powiat m.Częstochowa            0.0567060425           0.95
+Powiat m.Gliwice                1.2143159521           0.22
+Powiat m.Piekary Śląskie        0.5172599688           0.60
+Powiat m.Katowice               2.7930472233           0.01
+Powiat m.Jaworzno               1.5275757602           0.13
+Powiat m.Mysłowice              2.2437134352           0.02
+Powiat m.Rybnik                 1.9528137611           0.05
+Powiat myśliborski              2.8320292288           0.00
+Powiat policki                 -0.0411079980           0.97
+Powiat złotoryjski              1.9362968702           0.05
+Powiat m.Legnica               -0.8821591175           0.38
+Powiat jeleniogórski            2.0361165021           0.04
+Powiat oleśnicki                1.9101696017           0.06
+Powiat bolesławiecki           -2.3544028083           0.02
+Powiat kłodzki                  1.4755241761           0.14
+Powiat golubsko-dobrzyński      1.9395042173           0.05
+Powiat lubański                 0.4447385129           0.66
+Powiat trzebnicki               0.5778665137           0.56
+Powiat m.Wałbrzych od 2013      0.5515942415           0.58
+Powiat grudziądzki              1.4862209945           0.14
+Powiat inowrocławski            1.8848819073           0.06
+Powiat wołowski                 0.4433753039           0.66
+Powiat aleksandrowski           3.3064241988           0.00
+Powiat wrocławski               0.7653053249           0.44
+Powiat ząbkowicki               1.5044793321           0.13
+Powiat brodnicki               -2.8592794183           0.00
+Powiat bydgoski                -2.3248348971           0.02
+Powiat oławski                  0.0518377162           0.96
+Powiat polkowicki              -0.5966494801           0.55
+Powiat średzki'                 0.2580265514           0.80
+Powiat milicki                 -1.2345462808           0.22
+Powiat strzeliński              0.3429838953           0.73
+Powiat świdnicki'               0.3283349894           0.74
+Powiat legnicki                 0.0833306154           0.93
+Powiat lubiński                -1.1137273043           0.27
+Powiat lwówecki                 2.1107388498           0.03
+Powiat lipnowski                2.6973725239           0.01
+Powiat wąbrzeski                1.9479087169           0.05
+Powiat sępoleński               1.2561920103           0.21
+Powiat włocławski               2.6036637783           0.01
+Powiat świecki                  1.7587394818           0.08
+Powiat toruński                 1.5646552250           0.12
+Powiat żniński                  1.3818720099           0.17
+Powiat m.Bydgoszcz             -0.0890275356           0.93
+Powiat mogileński               1.2122175861           0.23
+Powiat m.Grudziądz              1.7024896811           0.09
+Powiat m.Toruń                 -0.5334867086           0.59
+Powiat m.Włocławek              2.9800789897           0.00
+Powiat radziejowski             1.8114141572           0.07
+Powiat nakielski                0.9936695367           0.32
+Powiat rypiński                 2.5142520175           0.01
+Powiat tucholski                1.2559794748           0.21
+Powiat chełmiński               1.5979004614           0.11
+Powiat wałbrzyski               2.0548379647           0.04
+Powiat zielonogórski            0.4886407061           0.63
+
+> # printing of the first six significant values <0.05 
+> head(locMorMat[locMorMat$Pr.z...0.<0.05,])
+[1] Ii             E.Ii           Var.Ii         Z.Ii           Pr.z....E.Ii..
+<0 rows> (or 0-length row.names)
+
+> # printing significant values> 0.95
+> locMorMat[locMorMat$Pr.z...0.>0.95,]
+[1] Ii             E.Ii           Var.Ii         Z.Ii           Pr.z....E.Ii..
+<0 rows> (or 0-length row.names)
+
+> # map of the significance of Moran's local statistics
+> names(locMorMat)[5]<-"Prob"
+
+> brks<-c(min(locMorMat[,5]), 0.05000, 0.95000, max(locMorMat[,5]))
+
+> cols<-c("grey30", "grey90", "grey60")
+
+> plot(pov, col=cols[findInterval(locMorMat[,5], brks)])
+
+> legend("bottomleft", legend=c("surrounded by relatively high values, locM>0", "insignificant", "surrounded by relatively low values, locM<0"), fill= .... [TRUNCATED] 
+
+> title(main=" Local Moran statistics ", cex=0.7)
+
+> plot(voi, add=TRUE, lwd=2)
+
+> #4.5.2.3 Local Geary C statistics
+> #4.5.2.4 Local Getis-Ord Gi statistics
+> 
+> # local Gi statistics
+> locG<-localG(unempl$X2011.06, cont.listw)
+
+> # locGstar<-localG(unempl$X2011.06, nb2listw(include.self(cont.nb)))
+> summary(locG)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+   -3.2    -1.1    -0.1     0.1     1.3     4.1 
+
+> # significance t-student test for n=100 
+> sig<-ifelse(locG<=-3.289 | locG>=3.289, "*", " ")
+
+> which(sig=="*")
+ [1]  34 226 243 247 251 253 256 288 289 294 298 348
+
+> unempl[which(sig=="*"), c(3,6,10,18)]
+                   poviat                 region dist X2011.06
+34    Powiat szydłowiecki            Mazowieckie   46       35
+226  Powiat starachowicki   \x8cwi\xeatokrzyskie   40       15
+243   Powiat szczecinecki     Zachodniopomorskie  135       25
+247    Powiat stargardzki     Zachodniopomorskie   41       20
+251       Powiat elbląski Warmi\xf1sko-Mazurskie   67       24
+253        Powiat giżycki Warmi\xf1sko-Mazurskie   93       15
+256     Powiat lidzbarski Warmi\xf1sko-Mazurskie   37       26
+288    Powiat bartoszycki Warmi\xf1sko-Mazurskie   55       28
+289     Powiat braniewski Warmi\xf1sko-Mazurskie   65       30
+294        Powiat drawski     Zachodniopomorskie   92       25
+298    Powiat kołobrzeski     Zachodniopomorskie   96       10
+348 Powiat aleksandrowski     Kujawsko-Pomorskie   26       19
+
+> # graph of significant locG statistics
+> brks<-c(-10,-3.289, 3.289, 10)
+
+> cols<-c("grey40", "grey85", "grey55")
+
+> cols<-c("red", "grey85", "green")
+
+> plot(pov, col=cols[findInterval(locG, brks)])
+
+> legend("bottomleft", legend=c("G significant - surrounded by relatively low values", "G insignificant", "G significant - surrounded by relatively hi ..." ... [TRUNCATED] 
+
+> title(main="Significant G statistics")
+
+> #4.5.2.4. Local spatial heteroscedasticity (LOSH)
+> 	
+> # local Gi statistics
+> locG<-localG(unempl$X2011.06, cont.listw)
+
+> a<-summary(locG)
+
+> # graph of Gi statistics, Fig.13a
+> brks<-c(a[1], a[2], a[3], a[5], a[6])
+
+> colfunc<-colorRampPalette(c("royalblue", "springgreen", "yellow", "red"))
+
+> coli<-colfunc(5)
+
+> plot(pov, col=coli[findInterval(locG, brks)], main=" Gi statistics")
+
+> legend("bottomleft", legend=c("Very low", "Low", "Medium", "High", "Very high") , fill=coli, bty="n")
+
+> #local Hi LOSH
+> locH<-LOSH(unempl$X2011.06, cont.listw, a=2, var_hi=TRUE, zero.policy=TRUE, na.action=na.exclude)
+
+> summary(locH)
+       Hi           E.Hi       Var.Hi          Z.Hi         x_bar_i    
+ Min.   :0.0   Min.   :1   Min.   :0.23   Min.   : 0.0   Min.   : 3.4  
+ 1st Qu.:0.3   1st Qu.:1   1st Qu.:0.36   1st Qu.: 1.3   1st Qu.:12.0  
+ Median :0.7   Median :1   Median :0.51   Median : 2.7   Median :14.6  
+ Mean   :0.9   Mean   :1   Mean   :0.68   Mean   : 3.7   Mean   :15.0  
+ 3rd Qu.:1.2   3rd Qu.:1   3rd Qu.:0.64   3rd Qu.: 5.2   3rd Qu.:18.0  
+ Max.   :5.0   Max.   :1   Max.   :2.59   Max.   :19.5   Max.   :29.2  
+       ei     
+ Min.   :  0  
+ 1st Qu.:  2  
+ Median :  8  
+ Mean   : 20  
+ 3rd Qu.: 23  
+ Max.   :246  
+
+> b<-summary(locH[,"Hi"])
+
+> b
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+    0.0     0.3     0.7     0.9     1.2     5.0 
+
+> # LOSH statistics mapped, Fig.4.13b
+> brks<-c(b[1], b[2], b[3], b[5], b[6])
+
+> plot(pov, col=coli[findInterval(locH[,"Hi"], brks)])
+
+> legend("bottomleft", legend=c("Very low", "Low", "Medium", "High", "Very high") , fill=coli , bty="n")
+
+> title(main="Hi statistics ")
+
+> #4.6 Spatial cross-correlations for two variables
+> 
+> #library(spatialEco) # calculations, crossCorrelation()
+> #library(GISTools) # graphics, chor .... [TRUNCATED] 
+
+> print(corr.classic)
+Spatial correlogram for unempl$X2018.05 
+method: Spatial autocorrelation
+     1      2      3      4      5      6 
+ 0.626  0.433  0.238  0.073  0.019 -0.033 
+
+> stat<-(dim(unempl)[1]-2)^0.5*corr.classic$res/(1-corr.classic$res^2)^0.5
+
+> pvalue<-1-pnorm(abs(stat), mean=0, sd=1)
+
+> corr.classic.sig<-cbind(corr.classic$res, stat, pvalue)
+
+> options(scipen=999, digits=2)
+
+> corr.classic.sig
+          stat     pvalue
+1  0.626 15.63 0.00000000
+2  0.433  9.35 0.00000000
+3  0.238  4.76 0.00000096
+4  0.073  1.42 0.07771150
+5  0.019  0.36 0.35830178
+6 -0.033 -0.64 0.26097131
+
+> corr.moran<-sp.correlogram(cont.nb, unempl$X2018.05, order=6, method="I")
+
+> print(corr.moran)
+Spatial correlogram for unempl$X2018.05 
+method: Moran's I
+         estimate expectation  variance standard deviate      Pr(I) two sided
+1 (380)  0.451342   -0.002639  0.001158            13.34 < 0.0000000000000002
+2 (380)  0.232150   -0.002639  0.000454            11.02 < 0.0000000000000002
+3 (380)  0.101506   -0.002639  0.000291             6.10         0.0000000011
+4 (380)  0.026673   -0.002639  0.000220             1.97                0.048
+5 (380)  0.006089   -0.002639  0.000179             0.65                0.514
+6 (380) -0.009616   -0.002639  0.000157            -0.56                0.577
+           
+1 (380) ***
+2 (380) ***
+3 (380) ***
+4 (380) *  
+5 (380)    
+6 (380)    
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+> plot(corr.classic)
+
+> plot(corr.moran) # Fig.4.14a
+
+> #library(spatialEco)
+> #unempl$crds<-crds.pov # adding xy coordinates to the data set
+> #unempl.lim<-unempl[,c(102,101)] # data.frame coordinates +  .... [TRUNCATED] 
+R version 4.3.1 (2023-06-16)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Fedora Linux 38 (Workstation Edition)
+
+Matrix products: default
+BLAS:   /home/rsb/topics/R/R431-share/lib64/R/lib/libRblas.so 
+LAPACK: /home/rsb/topics/R/R431-share/lib64/R/lib/libRlapack.so;  LAPACK version 3.11.0
+
+locale:
+ [1] LC_CTYPE=en_GB.UTF-8       LC_NUMERIC=C              
+ [3] LC_TIME=en_GB.UTF-8        LC_COLLATE=en_GB.UTF-8    
+ [5] LC_MONETARY=en_GB.UTF-8    LC_MESSAGES=en_GB.UTF-8   
+ [7] LC_PAPER=en_GB.UTF-8       LC_NAME=C                 
+ [9] LC_ADDRESS=C               LC_TELEPHONE=C            
+[11] LC_MEASUREMENT=en_GB.UTF-8 LC_IDENTIFICATION=C       
+
+time zone: Europe/Oslo
+tzcode source: system (glibc)
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+ [1] spatialEco_2.0-1       tripack_1.3-9.1        spatstat_3.0-6        
+ [4] spatstat.linnet_3.1-1  spatstat.model_3.2-6   rpart_4.1.21          
+ [7] spatstat.explore_3.2-5 nlme_3.1-163           spatstat.random_3.2-1 
+[10] spatstat.geom_3.2-7    spatstat.data_3.0-1    classInt_0.4-10       
+[13] doBy_4.6.19            cluster_2.1.4          fields_15.2           
+[16] viridisLite_0.4.2      spam_2.9-1             raster_3.6-26         
+[19] wesanderson_0.3.6      factoextra_1.0.7       ggplot2_3.4.4         
+[22] GISTools_0.7-4         rgeos_0.6-4            MASS_7.3-60           
+[25] RColorBrewer_1.1-3     maptools_1.1-8         dplyr_1.1.3           
+[28] spdep_1.2-9            sf_1.0-14              spData_2.3.0          
+[31] rgdal_1.6-7            sp_2.1-1              
+
+loaded via a namespace (and not attached):
+ [1] tidyselect_1.2.0      farver_2.1.1          dotCall64_1.1-0      
+ [4] lifecycle_1.0.3       Deriv_4.1.3           terra_1.7-55         
+ [7] magrittr_2.0.3        dbscan_1.1-11         compiler_4.3.1       
+[10] rlang_1.1.1           tools_4.3.1           utf8_1.2.4           
+[13] ggsignif_0.6.4        labeling_0.4.3        abind_1.4-5          
+[16] KernSmooth_2.23-22    withr_2.5.1           foreign_0.8-85       
+[19] purrr_1.0.2           grid_4.3.1            polyclip_1.10-6      
+[22] fansi_1.0.5           ggpubr_0.6.0          e1071_1.7-13         
+[25] colorspace_2.1-0      scales_1.2.1          spatstat.utils_3.0-3 
+[28] cli_3.6.1             generics_0.1.3        DBI_1.1.3            
+[31] proxy_0.4-27          splines_4.3.1         maps_3.4.1           
+[34] s2_1.1.4              vctrs_0.6.4           boot_1.3-28.1        
+[37] Matrix_1.6-1.1        carData_3.0-5         car_3.1-2            
+[40] rstatix_0.7.2         ggrepel_0.9.4         tensor_1.5           
+[43] spDataLarge_2.0.6     tidyr_1.3.0           units_0.8-4          
+[46] goftest_1.2-3         glue_1.6.2            codetools_0.2-19     
+[49] gtable_0.3.4          deldir_1.0-9          munsell_0.5.0        
+[52] tibble_3.2.1          pillar_1.9.0          R6_2.5.1             
+[55] wk_0.9.0              microbenchmark_1.4.10 lattice_0.22-4       
+[58] backports_1.4.1       broom_1.0.5           class_7.3-22         
+[61] Rcpp_1.0.11           spatstat.sparse_3.0-2 mgcv_1.9-0           
+[64] pkgconfig_2.0.3      
+
+> sink(type = "message")
+
+> sink()

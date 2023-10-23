@@ -1,7 +1,8 @@
-zz <- file("ch4_script_output.Rout", open="wb")
+zz <- file("ch4_script_output_rev.Rout", open="wb")
 options(warn=1)
 sink(zz)
-sink(zz, type = "message")##############################################
+sink(zz, type = "message")
+##############################################
 #Applied Spatial Statistics and Econometrics: Data Analysis in R (Routledge, 2020) 
 #Przestrzenne metody ilościowe w R: statystyka, ekonometria, uczenie maszynowe, analiza danych (CeDeWu, 2020)
 #Editor: Katarzyna Kopczewska 
@@ -22,12 +23,13 @@ sink(zz, type = "message")##############################################
 #4.2.3 Neighbourhood matrices according to the contiguity criterion
 
 # loading packages
-library(rgdal) 
+#library(rgdal) 
 library(spdep)
+library(sp)
 
 # poviat map
-pov<-readOGR(".", "powiaty", stringsAsFactors=TRUE) # 380 units 
-pov<-spTransform(pov, CRS("+proj=longlat +datum=NAD83"))
+pov<-as(sf::st_read("powiaty.shp", stringsAsFactors=TRUE, quiet=TRUE), "Spatial") #readOGR(".", "powiaty", stringsAsFactors=TRUE) # 380 units 
+pov<-spTransform(pov, CRS("OGC:CRS84"))
 
 # matrix of weights according to the contiguity criterion
 cont.sp<-as(pov, "SpatialPolygons") # conversion of polygons to class sp
@@ -48,8 +50,8 @@ plot(cont.nb, crds.pov, add=TRUE) # neighbourly layer
 cont.mat<-nb2mat(cont.nb)
 cont.mat[1:5, 1:5]
 
-voi<-readOGR(".", "wojewodztwa", stringsAsFactors=TRUE) # 16 units 
-voi<-spTransform(voi, CRS("+proj=longlat +datum=NAD83"))
+voi<-as(sf::st_read("wojewodztwa.shp", stringsAsFactors=TRUE, quiet=TRUE), "Spatial") #readOGR(".", "wojewodztwa", stringsAsFactors=TRUE) # 16 units 
+voi<-spTransform(voi, CRS("OGC:CRS84"))
 names_voi<-as.character(voi$jpt_nazwa_) # region names vector
 names_voi
 cont.voi.nb<-poly2nb(as(voi, "SpatialPolygons"), row.names=names_voi)
@@ -248,9 +250,9 @@ matt.listw
 
 # visualisation of values in the weight matrix
 a<-apply(matt.W, 1, max) 	# max in rows
-library(GISTools)		# Fig.4.6a
-choropleth(pov, a)		# value of weights in the poviat
-plot(voi, add=TRUE, lwd=2) 	# voivodship outline
+#library(GISTools)		# Fig.4.6a
+#choropleth(pov, a)		# value of weights in the poviat
+#plot(voi, add=TRUE, lwd=2) 	# voivodship outline
 
 sub<-data[data$year==2017, ]
 names(sub)
@@ -278,9 +280,9 @@ matt.listw
 
 # visualisation of values in the weight matrix
 a<-apply(matt.W, 1, max) 	# max in rows
-library(GISTools)
-choropleth(pov, a)		# value of weights in the poviat
-plot(voi, add=TRUE, lwd=2) 	# voivodeship outline
+#library(GISTools)
+#choropleth(pov, a)		# value of weights in the poviat
+#plot(voi, add=TRUE, lwd=2) 	# voivodeship outline
 
 #4.3 Distance measurement and spatial aggregation
 
@@ -288,7 +290,7 @@ firms<-read.csv("geoloc_data_firms.csv", header=TRUE, dec=",", sep=";", stringsA
 crds.Lublin<-c(22.4236877, 51.2180254) # coordinates of Lublin
 
 # xy coordinates of firms - SpatialPoints class object
-loc<-SpatialPoints(firms[,12:13], proj4string=CRS("+proj=longlat +datum=NAD83"))
+loc<-SpatialPoints(firms[,12:13], proj4string=CRS("OGC:CRS84"))
 head(loc)
 
 # vector distance of all points from the centre - Lublin
@@ -316,10 +318,10 @@ title(main="Distance from the centre")
 savePlot(filename="dists", type="jpeg")
 # checking the affiliation of points to areas
 lubelskie.pov<-pov[50:73,] # creating a map subset
-loc<-SpatialPoints(firms[,12:13], proj4string=CRS("+proj=longlat +datum=NAD83"))
+loc<-SpatialPoints(firms[,12:13], proj4string=CRS("OGC:CRS84"))
 
 # rewriting points to areas (poviats)
-firms.over<-over(loc, lubelskie.pov) # from sp:: package
+firms.over<-over(loc, lubelskie.pov) # from  package
 dim(firms.over)
 
 names(firms.over) # the same result will be obtained from names (pov)
@@ -331,8 +333,8 @@ head(the.same)
 # draw points on the map, options: random | regular | stratified
 # | nonaligned | hexagonal | clustered | fibonacci
 
-pl<-readOGR(".", "Panstwo") #outline map of Poland without internal divisions
-pl<-spTransform(pl, CRS("+proj=longlat +datum=NAD83"))
+pl<-as(sf::st_read("Panstwo.shp", stringsAsFactors=TRUE, quiet=TRUE), "Spatial") #readOGR(".", "Panstwo") #outline map of Poland without internal divisions
+pl<-spTransform(pl, CRS("OGC:CRS84"))
 
 newpoints<-spsample(pl, 20000, type="stratified") 
 newpoints.df<-as.data.frame(newpoints)		# class conversion
@@ -381,7 +383,7 @@ quilt.plot(dist[,2:3], dist$dist) # Fig.4.8a
 library(cluster)
 library(factoextra)
 library(wesanderson) 
-library(GISTools)
+#library(GISTools)
 
 # coordinate clustering
 c2<-clara(firms[,12:13], 5, metric="euclidean", sampsize=1000)
@@ -397,10 +399,10 @@ head(points)
 unique(points$poviat[points$cluster==1]) 
 
 # checking how many points there are within polygons (poviats)
-how.many.pts.in.pov<-poly.counts(loc, lubelskie.pov)# from GISTools:: 
+how.many.pts.in.pov<-a <- over(as(lubelskie.pov, "SpatialPolygons"), as(loc, "SpatialPoints"))#poly.counts(loc, lubelskie.pov)# from GISTools:: 
 
 # point density in relation to the surface - Fig.4.8b
-choropleth(lubelskie.pov, how.many.pts.in.pov/poly.areas(lubelskie.pov))
+#choropleth(lubelskie.pov, how.many.pts.in.pov/poly.areas(lubelskie.pov))
 
 NN<-1500 # number of observations
 samm<-spsample(pov, n=NN, type="random") # spatial sample
@@ -457,20 +459,20 @@ plot(samm.df$val, samm.lag)
 #4.4 Tessellation
 
 library(spatstat)
-library(rgdal)
-library(maptools)
+#library(rgdal)
+#library(maptools)
 
 # option A – reading a map with planar projection
-voi<-readOGR(".", "wojewodztwa") # 16 units 
+voi<-as(sf::st_read("wojewodztwa.shp", stringsAsFactors=TRUE, quiet=TRUE), "Spatial") #readOGR(".", "wojewodztwa") # 16 units 
 lub.voi<-voi[voi$jpt_nazwa_=="lubelskie",] # creating a map slice
-lub.owin<-as(lub.voi, "owin") # from rgdal:: 
+lub.owin<-as.owin(sf::st_as_sf(lub.voi))# as(lub.voi, "owin") # from rgdal:: 
 
 # option B – conversion of projection from sperical to planar
 #voi<-readOGR(".", "wojewodztwa") # 16 units 
-#voi<-spTransform(voi, CRS("+proj=longlat +datum=NAD83")) #spherical
+#voi<-spTransform(voi, CRS("OGC:CRS84")) #spherical
 voi<-spTransform(voi, CRS("+proj=merc +datum=NAD83")) # planar
 lub.voi<- voi[voi$jpt_nazwa_=="lubelskie",] # creating a map slice
-lub.owin<-as(lub.voi, "owin") # from rgdal::
+lub.owin<-as.owin(sf::st_as_sf(lub.voi))# as(lub.voi, "owin") # from rgdal::
 
 # extraction of unique points and random sampling
 cord<-as.matrix(cbind(firms$coords.x1, firms$coords.x2))
@@ -480,7 +482,7 @@ x<-order(x)
 cord2<-cord1[x,]
 
 cord2.sp<-SpatialPoints(cord2) # points in sp class spherical
-proj4string(cord2.sp)<-CRS("+proj=longlat +datum=NAD83") # spherical
+proj4string(cord2.sp)<-CRS("OGC:CRS84") # spherical
 cord2.sp<-spTransform(cord2.sp, CRS("+proj=merc +datum=NAD83")) #planar
 
 # construction of the spatial object and tessellation
@@ -491,20 +493,20 @@ plot(lub.ppp, add=TRUE, pch=".", col="darkblue", cex=2)
 degAxis(1)
 degAxis(2)
 
-tes.poly<-as(lub.tes, "SpatialPolygons") 
+tes.poly<-as(as(do.call("rbind", lapply(lub.tes$tiles, sf::st_as_sf)), "Spatial"), "SpatialPolygons") #as(lub.tes, "SpatialPolygons") 
 proj4string(tes.poly)<-CRS("+proj=merc +datum=NAD83") # spherical
-tes.poly<-spTransform(tes.poly, CRS("+proj=longlat +datum=NAD83"))
+tes.poly<-spTransform(tes.poly, CRS("OGC:CRS84"))
 
 library(tripack)
 lub.vm <- voronoi.mosaic(cord2[,1], cord2[,2])
 plot(lub.vm) # Fig.4.9b
-voi<-readOGR(".", "wojewodztwa") # 16 units 
-voi<-spTransform(voi, CRS("+proj=longlat +datum=NAD83")) #spherical
+voi<-as(sf::st_read("wojewodztwa.shp", stringsAsFactors=TRUE, quiet=TRUE), "Spatial") #readOGR(".", "wojewodztwa") # 16 units 
+voi<-spTransform(voi, CRS("OGC:CRS84")) #spherical
 library(tripack)
 lub.vm <- voronoi.mosaic(cord2[,1], cord2[,2])
 plot(lub.vm)
-voi<-readOGR(".", "wojewodztwa") # 16 units 
-voi<-spTransform(voi, CRS("+proj=longlat +datum=NAD83")) #spherical
+voi<-as(sf::st_read("wojewodztwa.shp", stringsAsFactors=TRUE, quiet=TRUE), "Spatial") #readOGR(".", "wojewodztwa") # 16 units 
+voi<-spTransform(voi, CRS("OGC:CRS84")) #spherical
 lub.voi<-voi[voi$jpt_nazwa_=="lubelskie",] # creating a map slice
 plot(lub.voi, add=TRUE, lwd=2, border="red")
 
@@ -517,8 +519,8 @@ head(lub.vp)
 unempl<-read.csv("unemp2018.csv", header=TRUE, dec=",", sep=";")
 names(unempl)
 # map of poviats and spatial weight matrix
-pov<-readOGR(".", "powiaty") # 380 units
-pov<-spTransform(pov, CRS("+proj=longlat +datum=NAD83"))
+pov<-as(sf::st_read("powiaty.shp", stringsAsFactors=TRUE, quiet=TRUE), "Spatial") #readOGR(".", "powiaty") # 380 units
+pov<-spTransform(pov, CRS("OGC:CRS84"))
 
 cont.nb<-poly2nb(as(pov, "SpatialPolygons")) 	# from the spdep:: package
 cont.listw<-nb2listw(cont.nb, style="W")	# from the spdep:: package
