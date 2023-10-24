@@ -1,3 +1,10 @@
+# RSB fork
+
+Working as of 2023-10-24
+
+Note that `GISTools` was archived for failing to update in 2022, and `SDMTools` was archived in 2019. Output files are run with retiring R-spatial packages and `GISTools` on the library path, output `_rev` files without retiring R-spatial packages on the library path. 
+
+
 # spatial_book
 Data and R codes to book on spatial data analysis
 
