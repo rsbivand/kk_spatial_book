@@ -2,7 +2,7 @@
 
 Working as of 2023-10-24
 
-Note that `GISTools` was archived for failing to update in 2022, and `SDMTools` was archived in 2019. Output files are run with retiring R-spatial packages and `GISTools` on the library path, output `_rev` files without retiring R-spatial packages on the library path. 
+Note that `GISTools` was archived for failing to update in 2022, and `SDMTools` was archived in 2019. Output files are run with retiring R-spatial packages and `GISTools` on the library path, output `_rev` files without retiring R-spatial packages on the library path. Diffs to be found in https://rsbivand.github.io/kk_spatial_book/.
 
 
 # spatial_book
