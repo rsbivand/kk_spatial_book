@@ -50,7 +50,7 @@ plot(voi)
 plot(pov) 
 
 library(maps)
-#library(GISTools)
+#library(GISTools) RSB last seen June 2022 (archived on CRAN)
 
 # contour map with an arrow and scale
 plot(pov) #Fig.2.1a

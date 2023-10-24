@@ -1,4 +1,4 @@
-zz <- file("ch5_script_output.Rout", open="wb")
+zz <- file("ch5_script_output_rev.Rout", open="wb")
 options(warn=1)
 sink(zz)
 sink(zz, type = "message")
@@ -57,8 +57,9 @@ model.lm<-lm(eq1, data=sub)
 summary(model.lm)
 library(spdep)
 library(spatialreg)
-library(rgdal)
-pov<-readOGR(".", "powiaty", stringsAsFactors=TRUE, integer64="allow.loss") # 380 units
+#library(rgdal)
+library(sp)
+pov<-as(sf::st_read("powiaty.shp", stringsAsFactors=TRUE, quiet=TRUE), "Spatial") #readOGR(".", "powiaty", stringsAsFactors=TRUE, integer64="allow.loss") # 380 units
 pov<- spTransform(pov, CRS("OGC:CRS84"))
 cont.nb<-poly2nb(as(pov, "SpatialPolygons")) 	# from the spdep:: package
 cont.listw<-nb2listw(cont.nb, style="W")		# from the spdep:: package
@@ -177,14 +178,14 @@ losh.stat.SAC<-LOSH(model.SAC$residuals, cont.listw, a=2, var_hi=TRUE, zero.poli
 
 losh.stat.LM<-LOSH(model.lm$residuals, cont.listw, a=2, var_hi=TRUE, zero.policy=TRUE, na.action=na.exclude)
 
-library(GISTools)
-choropleth(pov, losh.stat.SAC[,1], main="Spatial distribution of LOSH statistics for residuals from the SAC model")
-shades<-auto.shading(losh.stat.SAC[,1])
-choro.legend(14, 50.25, shades , cex=0.65, bty="n")
+#library(GISTools)
+#choropleth(pov, losh.stat.SAC[,1], main="Spatial distribution of LOSH statistics for residuals from the SAC model")
+#shades<-auto.shading(losh.stat.SAC[,1])
+#choro.legend(14, 50.25, shades , cex=0.65, bty="n")
 
-choropleth(pov, losh.stat.LM[,1], main="Spatial distribution of LOSH statistics for residuals from the LM model ")
-shades<-auto.shading(losh.stat.LM[,1])
-choro.legend(14, 50.25, shades, cex=0.65, bty="n")
+#choropleth(pov, losh.stat.LM[,1], main="Spatial distribution of LOSH statistics for residuals from the LM model ")
+#shades<-auto.shading(losh.stat.LM[,1])
+#choro.legend(14, 50.25, shades, cex=0.65, bty="n")
 
 #5.2.2.3 Residual autocorrelation tests
 
@@ -206,6 +207,7 @@ legend("bottomleft", legend=c("<mean-sd", "(mean-sd, mean)", "(mean, mean+sd)", 
 # quick map of residuals divided into positive and negative
 pov$res<-res
 rng<-c(-100,0,100)
+library(RColorBrewer)
 cls<-brewer.pal(3, "PuBuGn")
 spplot(pov, "res", col.regions=cls, at=rng)
 title(main=" Positive and negative residuals in the OLS model ")
@@ -324,7 +326,7 @@ metrics
 #5.3.1 Uni-directional spatial interaction models
 
 # drawing of core cities and diffusion directions Fig.5.9a
-voi<-readOGR(".", "wojewodztwa", stringsAsFactors=TRUE, integer64="allow.loss") # 16 units 
+voi<-as(sf::st_read("wojewodztwa.shp", stringsAsFactors=TRUE, quiet=TRUE), "Spatial") #readOGR(".", "wojewodztwa", stringsAsFactors=TRUE, integer64="allow.loss") # 16 units 
 voi<- spTransform(voi, CRS("OGC:CRS84"))
 par(mar=c(2,1,1,1)) 	# setting narrow margins
 bins<-c(0,1)
@@ -341,15 +343,15 @@ city.crds<-crds[city.id,]
 for(i in 1:4){
 arrows(city.crds[,1], city.crds[,2], city.crds[,1]+rnorm(16,0,0.35), city.crds[,2]+rnorm(16,0,0.35), angle=15, length=0.10, lwd=1, col="blue")}
 
-library(GISTools)
+#library(GISTools)
 library(RColorBrewer)
 
 # distance map of peripheral regions from central centres Fig.5.5a
-variable <-data$dist[data$year==2017]
-shading<-auto.shading(variable, n=6, cols=rev(brewer.pal(6, "Spectral")))
-choropleth(pov, variable, shading=shading)
-choro.legend(15, 50, shading, cex=0.65, bty="n")
-plot(voi, add=TRUE, lwd=2)
+#variable <-data$dist[data$year==2017]
+#shading<-auto.shading(variable, n=6, cols=rev(brewer.pal(6, "Spectral")))
+#choropleth(pov, variable, shading=shading)
+#choro.legend(15, 50, shading, cex=0.65, bty="n")
+#plot(voi, add=TRUE, lwd=2)
 par(mar=c(5,4,4,2))	# return to typical margin settings
 
 # panel chart Fig.5.6a
@@ -582,7 +584,7 @@ abs(result[2:9,])/abs(result[10:17,])
 
 # loading data on firms
 firms<-read.csv("geoloc_data_firms.csv", header=TRUE, dec=",", sep=";")
-voi<-readOGR(".", "wojewodztwa", stringsAsFactors=TRUE, integer64="allow.loss") # 16 units 
+voi<-as(sf::st_read("wojewodztwa.shp", stringsAsFactors=TRUE, quiet=TRUE), "Spatial") #readOGR(".", "wojewodztwa", stringsAsFactors=TRUE, integer64="allow.loss") # 16 units 
 voi<- spTransform(voi, CRS("OGC:CRS84"))
 
 # set of additional parameters for non-aggregated sectors
@@ -721,15 +723,15 @@ model.sdm<-lagsarlm(eq, data=data.x, pkt.k.sym.listw, method="LU", type="mixed")
 summary(model.sdm)
 moran.test(model.sdm$residuals, pkt.k.sym.listw)
 
-library(rgdal)
+#library(rgdal)
 library(spatstat)
-library(maptools)
+#library(maptools)
 
-voi<-readOGR(".", "wojewodztwa", stringsAsFactors=TRUE, integer64="allow.loss") # 16 units
+voi<-as(sf::st_read("wojewodztwa.shp", stringsAsFactors=TRUE, quiet=TRUE), "Spatial") #readOGR(".", "wojewodztwa", stringsAsFactors=TRUE, integer64="allow.loss") # 16 units
 voi<-spTransform(voi, CRS("OGC:CRS84")) # spherical
 voi<-spTransform(voi, CRS("+proj=merc +datum=NAD83")) # planar
 region<-voi[voi$jpt_nazwa_=="lubelskie",] # one region only
-region.owin<-as.owin(region) # rgdal:: requires planar coordinates
+region.owin<-as.owin(sf::st_as_sf(region))# as.owin(region) # rgdal:: requires planar coordinates
 
 points<-data.frame(x=firms1.in[selector[,c1.sdm$id.med],14],
 y=firms1.in[selector[,c1.sdm$id.med],15])
@@ -740,7 +742,7 @@ points.sp<-spTransform(points.sp, CRS("+proj=merc +datum=NAD83")) # planar
 region.ppp<-ppp(x=points.sp@coords[,1], y=points.sp@coords[,2], window=region.owin) # points of ppp class
 
 region.tes<-dirichlet(region.ppp) # Dirichlet tesselation
-tes.poly<-as(region.tes, "SpatialPolygons") 
+tes.poly<-as(as(do.call("rbind", lapply(region.tes$tiles, sf::st_as_sf)), "Spatial"), "SpatialPolygons") #as(region.tes, "SpatialPolygons") 
 proj4string(tes.poly)<-CRS("+proj=merc +datum=NAD83")
 tes.poly<-spTransform(tes.poly, CRS("+proj=merc +datum=NAD83")) #planar
 
@@ -758,7 +760,7 @@ colnames(forecasts1)<-c("predicted y","real y","crds x","crds y", "diff")
 points.pred<-SpatialPoints(firms1.out[1:nnew, 14:15]) # new sp points
 proj4string(points.pred)<-CRS("OGC:CRS84") # spherical
 points.pred<-spTransform(points.pred, CRS("+proj=merc +datum=NAD83"))
-a1<-over(points.pred, tes.poly) # assigning points to tessellation tiles
+a1<-over(as(tes.poly, "SpatialPolygons"), as(points.pred, "SpatialPoints")) # assigning points to tessellation tiles
 head(a1)
 
 # completing the draw when NA occurs
@@ -770,7 +772,7 @@ points.pred2<-SpatialPoints(firms1.out[a2:a4, 14:15]) # new points
 proj4string(points.pred2)<-CRS("OGC:CRS84") # spherical
 points.pred2<-spTransform(points.pred2, CRS("+proj=merc +datum=NAD83"))
 points.pred2
-a5<-over(points.pred2, tes.poly) # putting new points on the tile
+a5<-over(as(points.pred2, "SpatialPoints"), as(tes.poly, "SpatialPolygons")) #over(points.pred2, tes.poly) # putting new points on the tile
 a5
 a1[which(is.na(a1))]<-a5 # overwriting with new points
 
@@ -803,7 +805,7 @@ RAMSE.sdm
 
 #a reminder of the loaded grid data for the population
 #loading grid for population and converting projections
-pop<-readOGR(".", "PD_STAT_GRID_CELL_2011", stringsAsFactors=TRUE, integer64="allow.loss")
+pop<-as(sf::st_read("PD_STAT_GRID_CELL_2011.shp", stringsAsFactors=TRUE, quiet=TRUE), "Spatial") #readOGR(".", "PD_STAT_GRID_CELL_2011", stringsAsFactors=TRUE, integer64="allow.loss")
 pop<-spTransform(pop, CRS("OGC:CRS84"))
 pop.df<-as.data.frame(pop) # extracting data to data.frame 
 pop.grid<-as(pop, "SpatialPolygons") # extracting grid 
@@ -818,7 +820,7 @@ voi<-spTransform(voi, CRS("OGC:CRS84")) # spherical
 voi.lub<-voi[voi$jpt_nazwa_=="lubelskie",]
 plot(voi.lub)
 
-lim<-over(pop.grid, voi.lub) # overlay of grid and contour
+lim<-over(SpatialPoints(coordinates(pop.grid), proj4string=slot(pop.grid, "proj4string")), voi.lub) #over(pop.grid, voi.lub) # overlay of grid and contour
 summary(lim)
 a<-which(lim$jpt_nazwa_=="lubelskie") # rows which fulfill the criteria
 head(lim[a,])
@@ -836,14 +838,14 @@ plot(pop.grid.lub)
 plot(voi.lub, add=TRUE, border="red")
 
 # Figure - values of the examined variable - the whole province
-library(GISTools)
-choropleth(pop.grid.lub, pop.df.lub$TOT)
-plot(voi.lub, add=TRUE)
+#library(GISTools)
+#choropleth(pop.grid.lub, pop.df.lub$TOT)
+#plot(voi.lub, add=TRUE)
 
 # Fig.5.10b - values of the examined variable - zoomed district 
-library(GISTools)
+#library(GISTools)
 plot(pov[pov$jpt_nazwa_=="powiat Lublin",])
-choropleth(pop.grid.lub, pop.df.lub$TOT, add=TRUE)
+#choropleth(pop.grid.lub, pop.df.lub$TOT, add=TRUE)
 plot(pov[pov$jpt_nazwa_=="powiat Lublin",], add=TRUE, lwd=2)
 
 ### RSB cannot reproduce pp. 272-274
@@ -905,10 +907,10 @@ plot(pov[pov$jpt_nazwa_=="powiat Lublin",], add=TRUE, lwd=2)
 #5.4 Spatial panel models
 
 library(spdep)
-library(rgdal)
+#library(rgdal)
 # loading data
 data<-read.csv("data_nts4_2019.csv", header=TRUE, dec=",", sep=";")
-pov<-readOGR(".", "powiaty", stringsAsFactors=TRUE, integer64="allow.loss") # 380 units 
+pov<-as(sf::st_read("powiaty.shp", stringsAsFactors=TRUE, quiet=TRUE), "Spatial") #readOGR(".", "powiaty", stringsAsFactors=TRUE, integer64="allow.loss") # 380 units 
 pov<- spTransform(pov, CRS("OGC:CRS84"))
 
 # creating variables as described
@@ -976,10 +978,10 @@ eff
 attributes(eff) # attributes of specific effects object
 plot(density(eff$SETable[,1])) # specific effect density distribution
 
-library(GISTools)
-choropleth(pov, eff$SETable[,1], main="Fixed effects") # fixed effects mapped
-shades<-auto.shading(eff$SETable[,1])
-choro.legend(14, 50.25, shades, cex=0.65, bty="n")
+#library(GISTools)
+#choropleth(pov, eff$SETable[,1], main="Fixed effects") # fixed effects mapped
+#shades<-auto.shading(eff$SETable[,1])
+#choro.legend(14, 50.25, shades, cex=0.65, bty="n")
 
 # equation for scaled variables
 eq1.sc<-y.sc~ x1.sc+ x2.sc+ x3.sc+ x4.sc+ x5.sc+ x6.sc+ x7.sc+ x8.sc
